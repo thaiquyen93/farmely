@@ -1025,6 +1025,52 @@ SELECT setval(pg_get_serial_sequence('harvest_results', 'harvest_id'), (SELECT C
 SELECT setval(pg_get_serial_sequence('issue_reports', 'issue_id'), (SELECT COALESCE(MAX(issue_id), 1) FROM issue_reports));
 SELECT setval(pg_get_serial_sequence('notifications', 'notification_id'), (SELECT COALESCE(MAX(notification_id), 1) FROM notifications));
 SELECT setval(pg_get_serial_sequence('audit_logs', 'log_id'), (SELECT COALESCE(MAX(log_id), 1) FROM audit_logs));
+SELECT setval(pg_get_serial_sequence('support_tickets', 'id'), (SELECT COALESCE(MAX(id), 1) FROM support_tickets));
+SELECT setval(pg_get_serial_sequence('support_events', 'id'), (SELECT COALESCE(MAX(id), 1) FROM support_events));
+SELECT setval(pg_get_serial_sequence('support_attachments', 'id'), (SELECT COALESCE(MAX(id), 1) FROM support_attachments));
+
+-- ==============================================================================
+-- BẢNG CSKH & HỖ TRỢ KHÁCH HÀNG (SUPPORT TICKETS & FEEDBACK)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS support_tickets (
+    id BIGSERIAL PRIMARY KEY,
+    customer_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    category VARCHAR(40) NOT NULL CHECK (category IN ('ACCOUNT','RENTAL','CULTIVATION','SERVICE','FEEDBACK')),
+    title VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'NEW' CHECK (status IN ('NEW','IN_PROGRESS','RESPONDED','CLOSED')),
+    plot_id INTEGER REFERENCES plots(plot_id) ON DELETE SET NULL,
+    contract_id INTEGER REFERENCES contracts(contract_id) ON DELETE SET NULL,
+    payment_id INTEGER REFERENCES payment_transactions(transaction_id) ON DELETE SET NULL,
+    assignee_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_customer ON support_tickets(customer_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_filters ON support_tickets(category, status, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS support_events (
+    id BIGSERIAL PRIMARY KEY,
+    ticket_id BIGINT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+    actor_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    actor_role VARCHAR(20) NOT NULL,
+    type VARCHAR(20) NOT NULL,
+    body TEXT,
+    from_status VARCHAR(30),
+    to_status VARCHAR(30),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_support_events_ticket ON support_events(ticket_id, created_at);
+
+CREATE TABLE IF NOT EXISTS support_attachments (
+    id BIGSERIAL PRIMARY KEY,
+    ticket_id BIGINT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+    uploader_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    file_name VARCHAR(150) NOT NULL,
+    content_type VARCHAR(50) NOT NULL,
+    content BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- ==============================================================================
 -- HOÀN TẤT THIẾT LẬP CƠ SỞ DỮ LIỆU FARMELY!

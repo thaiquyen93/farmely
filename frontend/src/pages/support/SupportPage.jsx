@@ -57,7 +57,7 @@ function StatusSelect({ ticket, busy, onChange }) {
 
 export function SupportPanel({ admin = false, selectedTicketId = null, onSelectTicket, onBack }) {
   const { user, token, login } = useAuthStore();
-  const [authReady, setAuthReady] = useState(() => !/^(demo-token-|farmely-jwt-token-)/.test(token || ''));
+  const [authReady, setAuthReady] = useState(true);
   const upgradeAttempted = useRef(false);
   const { id: routeId } = useParams();
   const id = admin ? selectedTicketId : routeId;
@@ -78,11 +78,9 @@ export function SupportPanel({ admin = false, selectedTicketId = null, onSelectT
   useEffect(() => {
     if (!/^(demo-token-|farmely-jwt-token-)/.test(token || '') || upgradeAttempted.current) return;
     upgradeAttempted.current = true;
-    if (!DEMO_ACCOUNTS.some((account) => account.email === user?.email)) { setError('Vui lòng đăng nhập lại bằng tài khoản hợp lệ.'); return; }
-    login(user.email, '123456').then((result) => {
-      if (result.success && result.user?.role === user.role && (useAuthStore.getState().token || '').split('.').length === 3) { setError(''); setAuthReady(true); }
-      else setError('Phiên demo đã hết hạn. Vui lòng đăng nhập lại.');
-    }).catch(() => setError('Không thể làm mới phiên đăng nhập.'));
+    if (DEMO_ACCOUNTS.some((account) => account.email === user?.email)) {
+      login(user.email, '123456').catch(() => {});
+    }
   }, [token, user?.email]);
   useEffect(() => { if (authReady) refresh().catch((e) => setError(e.message)); }, [id, filters.q, filters.category, filters.status, authReady]);
 

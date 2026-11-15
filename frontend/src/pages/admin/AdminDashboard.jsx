@@ -63,7 +63,8 @@ import {
   Receipt,
   Wallet,
   Landmark,
-  PieChart
+  PieChart,
+  Headphones
 } from 'lucide-react';
 
 function cleanText(str) {
@@ -178,13 +179,19 @@ export default function AdminDashboard() {
   const [issueAssignNotes, setIssueAssignNotes] = useState('');
 
   // 6. Contracts & Renewals / Cancellation Requests State (BR10 / BR11b)
+  const [allContracts, setAllContracts] = useState([]);
+  const [loadingContracts, setLoadingContracts] = useState(false);
+  const [selectedContractForDetail, setSelectedContractForDetail] = useState(null);
+  const [contractSearchQuery, setContractSearchQuery] = useState('');
+  const [contractStatusFilter, setContractStatusFilter] = useState('ALL');
+  const [contractPage, setContractPage] = useState(1);
   const [renewalRequests, setRenewalRequests] = useState([]);
   const [contractsSubTab, setContractsSubTab] = useState(() => {
     if (typeof window !== 'undefined') {
       const s = new URLSearchParams(window.location.search).get('subtab');
-      if (['renewals', 'cancellations'].includes(s)) return s;
+      if (['all', 'renewals', 'cancellations'].includes(s)) return s;
     }
-    return 'renewals';
+    return 'all';
   });
   const [refundRequests, setRefundRequests] = useState([]);
   const [selectedRefundToReview, setSelectedRefundToReview] = useState(null);
@@ -303,7 +310,8 @@ export default function AdminDashboard() {
         alertsPayload,
         alertOverviewPayload,
         weatherPayload,
-        analyticsPayload
+        analyticsPayload,
+        contractsPayload
       ] = await Promise.all([
         apiFetch('/api/services/requests').catch(() => ({ data: [] })),
         apiFetch('/api/contracts/cancellations').catch(() => ({ data: [] })),
@@ -316,11 +324,14 @@ export default function AdminDashboard() {
         apiFetch('/api/alerts').catch(() => ({ data: [] })),
         apiFetch('/api/alerts/overview').catch(() => ({ data: {} })),
         apiFetch('/api/weather/current').catch(() => ({ data: null })),
-        apiFetch('/api/admin/analytics').catch(() => ({ data: null }))
+        apiFetch('/api/admin/analytics').catch(() => ({ data: null })),
+        apiFetch('/api/contracts').catch(() => ({ data: [] }))
       ]);
 
       const requests = unwrapData(requestPayload) || [];
       const cancellations = unwrapData(cancellationPayload) || [];
+      const contractsData = unwrapData(contractsPayload) || [];
+      setAllContracts(contractsData);
       const users = unwrapData(userPayload) || [];
       const plots = unwrapData(plotPayload) || [];
       const rentalsData = unwrapData(rentalPayload) || [];
@@ -576,6 +587,19 @@ export default function AdminDashboard() {
       setSelectedUserToEdit(null);
     } finally {
       setIsUpdatingUser(false);
+    }
+  };
+
+  const fetchAllContracts = async () => {
+    setLoadingContracts(true);
+    try {
+      const res = await apiFetch('/api/contracts');
+      const data = unwrapData(res) || [];
+      setAllContracts(data);
+    } catch (e) {
+      console.error('Failed to load contracts:', e);
+    } finally {
+      setLoadingContracts(false);
     }
   };
 
@@ -1098,7 +1122,7 @@ export default function AdminDashboard() {
               { id: 'dispatch', label: 'Điều Phối Nhân Sự', icon: UserCheck, count: totalDispatchPendingCount },
               { id: 'contracts', label: 'Hợp Đồng & Gia Hạn', icon: FileText, count: (renewalRequests.filter(r => r.status === 'PENDING').length + refundRequests.filter(r => r.status === 'PENDING').length) || null },
               { id: 'visits', label: 'Lịch Hẹn Tham Quan', icon: Calendar, count: siteVisits.filter(v => v.status === 'PENDING').length },
-              { id: 'support', label: 'CSKH', icon: PhoneCall, count: null },
+              { id: 'support', label: 'CSKH', icon: PhoneCall, count: analyticsData?.kpi?.pendingSupportTickets || null },
               { id: 'users', label: 'Người Dùng & Phân Quyền', icon: Users, count: systemUsers.length },
               { id: 'audit-logs', label: 'Nhật Ký & Báo Cáo', icon: ShieldCheck, count: null }
             ].map((tab) => {
@@ -1917,11 +1941,11 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* Card 2: Tỷ Lệ Lấp Đầy Đất */}
+                    {/* Card 2: Tỷ Lệ Đất Đang Thuê */}
                     <div className="bg-white p-5 rounded-3xl border border-brand-border shadow-sm space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">
-                          Tỷ Lệ Lấp Đầy Đất
+                          Tỷ Lệ Đất Đang Thuê
                         </span>
                         <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center">
                           <Grid3X3 className="w-4 h-4" />
@@ -1936,9 +1960,9 @@ export default function AdminDashboard() {
                         </p>
                       </div>
                       <div className="pt-2 border-t border-brand-border/60 flex items-center justify-between text-[11px]">
-                        <span className="text-stone-500">{kpi.availablePlots} Thửa sẵn sàng</span>
+                        <span className="text-stone-500">{kpi.availablePlots} Thửa còn trống</span>
                         <span className="font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md">
-                          {kpi.maintenancePlots} Bảo trì 4d
+                          {kpi.maintenancePlots} Đang nghỉ đất
                         </span>
                       </div>
                     </div>
@@ -1969,28 +1993,27 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* Card 4: Nhiệm Vụ Đúng Hạn */}
+                    {/* Card 4: Yêu Cầu CSKH & Xử Lý Sự Cố */}
                     <div className="bg-white p-5 rounded-3xl border border-brand-border shadow-sm space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">
-                          Tiến Độ Hoàn Thành
+                          CSKH & Xử Lý Sự Cố
                         </span>
-                        <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
-                          <CheckCircle2 className="w-4 h-4" />
+                        <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center">
+                          <Headphones className="w-4 h-4" />
                         </div>
                       </div>
                       <div>
                         <div className="text-2xl sm:text-3xl font-heading font-black text-brand-dark">
-                          {kpi.taskCompletionRate}%
+                          {kpi.supportResponseRate ?? (kpi.totalSupportTickets ? Math.round(((kpi.handledSupportTickets || 0) / kpi.totalSupportTickets) * 100) : 100)}%
                         </div>
                         <p className="text-xs text-brand-muted mt-1">
-                          Đã hoàn thành: <span className="font-bold text-indigo-700">{kpi.completedTasks}</span> / {kpi.totalTasks} việc
+                          Tỷ lệ xử lý: <span className="font-bold text-purple-700">{kpi.handledSupportTickets ?? 0}</span> / {kpi.totalSupportTickets ?? 0} yêu cầu
                         </p>
                       </div>
-                      <div className="pt-2 border-t border-brand-border/60 flex items-center justify-between text-[11px]">
-                        <span className="text-stone-500">{kpi.inProgressTasks} Đang làm • {kpi.pendingTasks} Chờ</span>
-                        <span className="font-bold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md">
-                          ≥1 ảnh thực địa
+                      <div className="pt-2 border-t border-brand-border/60 text-[11px]">
+                        <span className="text-stone-500">
+                          {kpi.inProgressSupportTickets ?? 0} Đang xử lý • {kpi.pendingSupportTickets ?? 0} Chờ tiếp nhận
                         </span>
                       </div>
                     </div>
@@ -2105,14 +2128,10 @@ export default function AdminDashboard() {
                           <span className="font-bold text-stone-700 block uppercase tracking-wider text-[10px]">
                             Cổng Thanh Toán Tích Hợp
                           </span>
-                          <div className="grid grid-cols-2 gap-2 text-[11px]">
+                          <div className="text-[11px]">
                             <div className="p-2.5 rounded-xl bg-blue-50/60 border border-blue-100 space-y-0.5">
                               <span className="font-bold text-blue-900 block">VNPAY Sandbox</span>
-                              <span className="text-stone-600">63.0% Thực thu</span>
-                            </div>
-                            <div className="p-2.5 rounded-xl bg-purple-50/60 border border-purple-100 space-y-0.5">
-                              <span className="font-bold text-purple-900 block">VietQR 24/7</span>
-                              <span className="text-stone-600">37.0% Thực thu</span>
+                              <span className="text-stone-600">100% Thực thu</span>
                             </div>
                           </div>
                         </div>
@@ -2135,36 +2154,22 @@ export default function AdminDashboard() {
 
                       <div className="flex items-center gap-2 flex-wrap text-xs">
                         <span className="text-stone-500 font-medium">Lọc kỳ xem:</span>
-                        <button
-                          type="button"
-                          onClick={() => { setSelectedRevenueMonth('ALL'); setTransactionPage(1); }}
-                          className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer ${
-                            selectedRevenueMonth === 'ALL'
-                              ? 'bg-emerald-800 text-white shadow-sm'
-                              : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                          }`}
+                        <select
+                          aria-label="Lọc kỳ xem"
+                          value={selectedRevenueMonth}
+                          onChange={(e) => {
+                            setSelectedRevenueMonth(e.target.value);
+                            setTransactionPage(1);
+                          }}
+                          className="rounded-xl border border-stone-300 bg-white px-3 py-2 text-xs font-bold text-stone-700 outline-none focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700 cursor-pointer shadow-sm"
                         >
-                          Tất cả các tháng
-                        </button>
-                        {monthlyRevenueWithMetrics.map(m => (
-                          <button
-                            key={m.month}
-                            type="button"
-                            onClick={() => { setSelectedRevenueMonth(m.month); setTransactionPage(1); }}
-                            className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                              selectedRevenueMonth === m.month
-                                ? 'bg-emerald-800 text-white shadow-sm'
-                                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                            }`}
-                          >
-                            <span>{m.monthLabel}</span>
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                              selectedRevenueMonth === m.month ? 'bg-white/20 text-white' : 'bg-stone-200 text-stone-700'
-                            }`}>
-                              {m.transactionCount}
-                            </span>
-                          </button>
-                        ))}
+                          <option value="ALL">Tất cả các tháng</option>
+                          {monthlyRevenueWithMetrics.map(m => (
+                            <option key={m.month} value={m.month}>
+                              {m.monthLabel} ({m.month}) — {m.transactionCount} giao dịch
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
 
@@ -2183,7 +2188,10 @@ export default function AdminDashboard() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-brand-border/60">
-                          {monthlyRevenueWithMetrics.map(m => {
+                          {(selectedRevenueMonth === 'ALL'
+                            ? monthlyRevenueWithMetrics
+                            : monthlyRevenueWithMetrics.filter(m => m.month === selectedRevenueMonth)
+                          ).map(m => {
                             const isSelected = selectedRevenueMonth === m.month;
                             return (
                               <tr
@@ -2265,6 +2273,13 @@ export default function AdminDashboard() {
                               </tr>
                             );
                           })}
+                          {(selectedRevenueMonth !== 'ALL' && !monthlyRevenueWithMetrics.some(m => m.month === selectedRevenueMonth)) && (
+                            <tr>
+                              <td colSpan={7} className="py-8 text-center text-stone-500 font-medium">
+                                Không có dữ liệu doanh thu cho tháng này.
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -2482,6 +2497,22 @@ export default function AdminDashboard() {
                 <div className="flex border-b border-brand-border gap-2 text-xs font-bold">
                   <button
                     type="button"
+                    onClick={() => setContractsSubTab('all')}
+                    className={`pb-2.5 px-3 border-b-2 transition flex items-center gap-2 cursor-pointer ${
+                      contractsSubTab === 'all'
+                        ? 'border-brand-green text-brand-green'
+                        : 'border-transparent text-stone-500 hover:text-stone-800'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Tất Cả Hợp Đồng</span>
+                    <span className="rounded-full bg-stone-100 text-stone-800 px-2 py-0.5 text-[10px]">
+                      {allContracts.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setContractsSubTab('renewals')}
                     className={`pb-2.5 px-3 border-b-2 transition flex items-center gap-2 cursor-pointer ${
                       contractsSubTab === 'renewals'
@@ -2489,6 +2520,7 @@ export default function AdminDashboard() {
                         : 'border-transparent text-stone-500 hover:text-stone-800'
                     }`}
                   >
+                    <RotateCw className="w-3.5 h-3.5" />
                     <span>Yêu Cầu Gia Hạn Hợp Đồng</span>
                     <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px]">
                       {renewalRequests.filter((r) => r.status === 'PENDING').length}
@@ -2504,6 +2536,7 @@ export default function AdminDashboard() {
                         : 'border-transparent text-stone-500 hover:text-stone-800'
                     }`}
                   >
+                    <RotateCcw className="w-3.5 h-3.5" />
                     <span>Phê Duyệt Hủy Hợp Đồng & Hoàn Cọc</span>
                     <span className="rounded-full bg-rose-100 text-rose-800 px-2 py-0.5 text-[10px]">
                       {refundRequests.filter((r) => r.status === 'PENDING').length}
@@ -2512,7 +2545,366 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Subtab Content */}
-                {contractsSubTab === 'renewals' ? (
+                {contractsSubTab === 'all' && (() => {
+                  const totalCount = allContracts.length;
+                  const activeCount = allContracts.filter(c => c.status === 'ACTIVE').length;
+                  const expiringCount = allContracts.filter(c => {
+                    if (c.status !== 'ACTIVE' || !c.rentals?.[0]?.endDate) return false;
+                    const diff = Math.ceil((new Date(c.rentals[0].endDate) - new Date()) / (1000 * 60 * 60 * 24));
+                    return diff >= 0 && diff <= 30;
+                  }).length;
+                  const completedCount = allContracts.filter(c => c.status === 'COMPLETED').length;
+                  const cancelledCount = allContracts.filter(c => c.status === 'CANCELLED').length;
+
+                  // Filter logic
+                  const filtered = allContracts.filter(c => {
+                    if (contractStatusFilter === 'ACTIVE' && c.status !== 'ACTIVE') return false;
+                    if (contractStatusFilter === 'EXPIRING') {
+                      if (c.status !== 'ACTIVE' || !c.rentals?.[0]?.endDate) return false;
+                      const diff = Math.ceil((new Date(c.rentals[0].endDate) - new Date()) / (1000 * 60 * 60 * 24));
+                      if (diff < 0 || diff > 30) return false;
+                    }
+                    if (contractStatusFilter === 'COMPLETED' && c.status !== 'COMPLETED') return false;
+                    if (contractStatusFilter === 'CANCELLED' && c.status !== 'CANCELLED') return false;
+
+                    if (contractSearchQuery.trim()) {
+                      const q = contractSearchQuery.trim().toLowerCase();
+                      const numMatch = (c.contractNumber || '').toLowerCase().includes(q);
+                      const nameMatch = (c.renterName || '').toLowerCase().includes(q);
+                      const phoneMatch = (c.renterPhone || '').includes(q);
+                      const plotMatch = c.rentals?.some(r => (r.plotCode || '').toLowerCase().includes(q));
+                      const varMatch = c.rentals?.some(r => (r.varietyName || '').toLowerCase().includes(q));
+                      if (!numMatch && !nameMatch && !phoneMatch && !plotMatch && !varMatch) return false;
+                    }
+                    return true;
+                  });
+
+                  const pageSize = 10;
+                  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+                  const paginated = filtered.slice((contractPage - 1) * pageSize, contractPage * pageSize);
+
+                  return (
+                    <div className="space-y-5">
+                      {/* 4 KPI Cards */}
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                        <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 flex items-center justify-between">
+                          <div>
+                            <span className="text-stone-500 font-medium block">Tổng Hợp Đồng</span>
+                            <span className="text-xl font-heading font-black text-stone-900 mt-1 block">
+                              {totalCount}
+                            </span>
+                            <span className="text-[10px] text-stone-400">Master Lease CSDL</span>
+                          </div>
+                          <div className="w-10 h-10 rounded-xl bg-stone-200/60 flex items-center justify-center text-stone-600">
+                            <FileText className="w-5 h-5" />
+                          </div>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex items-center justify-between">
+                          <div>
+                            <span className="text-emerald-700 font-medium block">Đang Hiệu Lực</span>
+                            <span className="text-xl font-heading font-black text-emerald-900 mt-1 block">
+                              {activeCount}
+                            </span>
+                            <span className="text-[10px] text-emerald-600/80">Đang canh tác</span>
+                          </div>
+                          <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700">
+                            <ShieldCheck className="w-5 h-5" />
+                          </div>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 flex items-center justify-between">
+                          <div>
+                            <span className="text-amber-700 font-medium block">Sắp Hết Hạn (≤30 ngày)</span>
+                            <span className="text-xl font-heading font-black text-amber-900 mt-1 block">
+                              {expiringCount}
+                            </span>
+                            <span className="text-[10px] text-amber-600/80">Cần liên hệ gia hạn</span>
+                          </div>
+                          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700">
+                            <Clock className="w-5 h-5" />
+                          </div>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200 flex items-center justify-between">
+                          <div>
+                            <span className="text-rose-700 font-medium block">Đã Hủy / Hoàn Cọc</span>
+                            <span className="text-xl font-heading font-black text-rose-900 mt-1 block">
+                              {cancelledCount}
+                            </span>
+                            <span className="text-[10px] text-rose-600/80">Thanh lý hợp đồng</span>
+                          </div>
+                          <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-700">
+                            <RotateCcw className="w-5 h-5" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Toolbar: Filter Pills & Search */}
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1">
+                        {/* Status Pills */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => { setContractStatusFilter('ALL'); setContractPage(1); }}
+                            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
+                              contractStatusFilter === 'ALL'
+                                ? 'bg-brand-green text-white shadow-xs'
+                                : 'bg-stone-100 text-stone-600 hover:bg-stone-200/70'
+                            }`}
+                          >
+                            Tất cả ({totalCount})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setContractStatusFilter('ACTIVE'); setContractPage(1); }}
+                            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
+                              contractStatusFilter === 'ACTIVE'
+                                ? 'bg-emerald-700 text-white shadow-xs'
+                                : 'bg-stone-100 text-stone-600 hover:bg-stone-200/70'
+                            }`}
+                          >
+                            Đang hiệu lực ({activeCount})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setContractStatusFilter('EXPIRING'); setContractPage(1); }}
+                            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
+                              contractStatusFilter === 'EXPIRING'
+                                ? 'bg-amber-600 text-white shadow-xs'
+                                : 'bg-stone-100 text-stone-600 hover:bg-stone-200/70'
+                            }`}
+                          >
+                            Sắp hết hạn ({expiringCount})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setContractStatusFilter('COMPLETED'); setContractPage(1); }}
+                            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
+                              contractStatusFilter === 'COMPLETED'
+                                ? 'bg-blue-600 text-white shadow-xs'
+                                : 'bg-stone-100 text-stone-600 hover:bg-stone-200/70'
+                            }`}
+                          >
+                            Đã hoàn tất ({completedCount})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setContractStatusFilter('CANCELLED'); setContractPage(1); }}
+                            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
+                              contractStatusFilter === 'CANCELLED'
+                                ? 'bg-rose-600 text-white shadow-xs'
+                                : 'bg-stone-100 text-stone-600 hover:bg-stone-200/70'
+                            }`}
+                          >
+                            Đã hủy ({cancelledCount})
+                          </button>
+                        </div>
+
+                        {/* Search Input */}
+                        <div className="relative min-w-[280px]">
+                          <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            value={contractSearchQuery}
+                            onChange={(e) => { setContractSearchQuery(e.target.value); setContractPage(1); }}
+                            placeholder="Tìm mã HĐ, khách hàng, thửa đất..."
+                            className="w-full pl-9 pr-8 py-1.5 rounded-xl border border-stone-200 bg-stone-50 text-xs focus:outline-none focus:border-brand-green focus:bg-white"
+                          />
+                          {contractSearchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => { setContractSearchQuery(''); setContractPage(1); }}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Clean 6-Column Contracts Table */}
+                      <div className="overflow-x-auto rounded-2xl border border-brand-border bg-white shadow-2xs">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="border-b border-brand-border bg-stone-50/80 text-[11px] font-bold text-stone-600 uppercase tracking-wider">
+                              <th className="py-3 px-4">MÃ HỢP ĐỒNG</th>
+                              <th className="py-3 px-4">KHÁCH HÀNG</th>
+                              <th className="py-3 px-4">THỬA ĐẤT</th>
+                              <th className="py-3 px-4">GIÁ TRỊ HĐ</th>
+                              <th className="py-3 px-4">THỜI HẠN CÒN LẠI</th>
+                              <th className="py-3 px-4">TRẠNG THÁI</th>
+                              <th className="py-3 px-4 text-right"></th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-brand-border/60">
+                            {paginated.length === 0 ? (
+                              <tr>
+                                <td colSpan="7" className="py-12 text-center text-stone-500 text-xs">
+                                  Không tìm thấy hợp đồng nào phù hợp với bộ lọc hiện tại.
+                                </td>
+                              </tr>
+                            ) : (
+                              paginated.map((c) => {
+                                const firstRental = c.rentals?.[0];
+
+                                let diffDays = null;
+                                let endDateShort = '—';
+                                if (firstRental?.endDate) {
+                                  diffDays = Math.ceil((new Date(firstRental.endDate) - new Date()) / (1000 * 60 * 60 * 24));
+                                  const parts = firstRental.endDate.split('-');
+                                  if (parts.length === 3) {
+                                    endDateShort = `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}`;
+                                  }
+                                }
+
+                                return (
+                                  <tr key={c.contractId} className="hover:bg-stone-50/70 transition-colors">
+                                    {/* 1. MÃ HỢP ĐỒNG */}
+                                    <td className="py-3.5 px-4">
+                                      <div className="font-mono font-bold text-stone-900 text-xs">
+                                        {c.contractNumber}
+                                      </div>
+                                    </td>
+
+                                    {/* 2. KHÁCH HÀNG */}
+                                    <td className="py-3.5 px-4">
+                                      <div className="font-bold text-stone-900 text-xs">
+                                        {c.renterName || 'Khách hàng'}
+                                      </div>
+                                      <div className="text-[11px] text-stone-500 italic mt-0.5">
+                                        ({c.renterPhone || '—'})
+                                      </div>
+                                    </td>
+
+                                    {/* 3. THỬA ĐẤT */}
+                                    <td className="py-3.5 px-4 text-xs">
+                                      <span className="font-bold text-stone-900">
+                                        Thửa {c.rentals?.map(r => r.plotCode).filter(Boolean).join(', ') || '—'}
+                                      </span>
+                                      {firstRental?.varietyName ? (
+                                        <span className="text-stone-600"> • {firstRental.varietyName}</span>
+                                      ) : (
+                                        <span className="text-stone-400"> • Chưa chọn giống</span>
+                                      )}
+                                    </td>
+
+                                    {/* 4. GIÁ TRỊ HĐ */}
+                                    <td className="py-3.5 px-4">
+                                      <div className="font-bold text-stone-900 text-xs">
+                                        {Number(c.totalAmount || 0).toLocaleString('vi-VN')} đ
+                                      </div>
+                                    </td>
+
+                                    {/* 5. THỜI HẠN CÒN LẠI */}
+                                    <td className="py-3.5 px-4 text-xs font-medium text-stone-800">
+                                      {c.status === 'ACTIVE' && diffDays !== null ? (
+                                        diffDays > 0 ? (
+                                          <span>
+                                            {diffDays} ngày <span className="text-stone-500 italic font-normal">({endDateShort})</span>
+                                          </span>
+                                        ) : diffDays === 0 ? (
+                                          <span>
+                                            Hôm nay <span className="text-stone-500 italic font-normal">({endDateShort})</span>
+                                          </span>
+                                        ) : (
+                                          <span className="text-amber-700">
+                                            Quá hạn {Math.abs(diffDays)} ngày <span className="text-stone-500 italic font-normal">({endDateShort})</span>
+                                          </span>
+                                        )
+                                      ) : c.status === 'CANCELLED' ? (
+                                        <span className="text-stone-500">
+                                          Đã dừng {endDateShort !== '—' ? <span className="italic">({endDateShort})</span> : ''}
+                                        </span>
+                                      ) : c.status === 'COMPLETED' ? (
+                                        <span className="text-stone-500">
+                                          Hoàn tất {endDateShort !== '—' ? <span className="italic">({endDateShort})</span> : ''}
+                                        </span>
+                                      ) : (
+                                        <span className="text-stone-400">Chờ kích hoạt</span>
+                                      )}
+                                    </td>
+
+                                    {/* 6. TRẠNG THÁI */}
+                                    <td className="py-3.5 px-4">
+                                      {c.status === 'ACTIVE' && (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-stone-100 text-stone-700 border border-stone-200/60">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                          Đang hiệu lực
+                                        </span>
+                                      )}
+                                      {c.status === 'CANCELLED' && (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/60">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                          Đã hủy
+                                        </span>
+                                      )}
+                                      {c.status === 'COMPLETED' && (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                                          Hoàn tất
+                                        </span>
+                                      )}
+                                      {c.status === 'PENDING' && (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/60">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                          Chờ kích hoạt
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    {/* 7. Thao tác */}
+                                    <td className="py-3.5 px-4 text-right">
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedContractForDetail(c)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-200 bg-stone-50 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-800 text-xs font-bold text-stone-700 transition cursor-pointer shadow-2xs"
+                                      >
+                                        <Eye className="w-3.5 h-3.5 text-stone-500" />
+                                        <span>Xem chi tiết</span>
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between pt-2 border-t border-brand-border/60 text-xs">
+                          <span className="text-stone-500">
+                            Hiển thị trang <span className="font-bold text-stone-800">{contractPage}</span> / {totalPages} ({filtered.length} hợp đồng)
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={contractPage === 1}
+                              onClick={() => setContractPage(p => Math.max(1, p - 1))}
+                              className="text-xs font-bold py-1 px-3"
+                            >
+                              Trang trước
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={contractPage === totalPages}
+                              onClick={() => setContractPage(p => Math.min(totalPages, p + 1))}
+                              className="text-xs font-bold py-1 px-3"
+                            >
+                              Trang sau
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {contractsSubTab === 'renewals' && (
                   <div className="space-y-4">
                     <div className="rounded-2xl bg-emerald-50/70 border border-emerald-200 p-4 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
@@ -2579,7 +2971,9 @@ export default function AdminDashboard() {
                       ))
                     )}
                   </div>
-                ) : (
+                )}
+
+                {contractsSubTab === 'cancellations' && (
                   <div className="space-y-4">
                     {refundRequests.map((req) => (
                       <div
@@ -2620,6 +3014,205 @@ export default function AdminDashboard() {
                         )}
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Slide-over Drawer for Contract Detail */}
+                {selectedContractForDetail && (
+                  <div className="fixed inset-0 z-50 overflow-hidden">
+                    {/* Backdrop */}
+                    <div
+                      className="absolute inset-0 bg-stone-900/40 backdrop-blur-xs transition-opacity"
+                      onClick={() => setSelectedContractForDetail(null)}
+                    />
+                    {/* Drawer Panel */}
+                    <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
+                      <div className="w-screen max-w-2xl bg-white shadow-2xl flex flex-col">
+                        {/* Drawer Header */}
+                        <div className="px-6 py-5 border-b border-brand-border bg-stone-50 flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2.5">
+                              <span className="font-mono font-black text-brand-dark text-lg">
+                                {selectedContractForDetail.contractNumber}
+                              </span>
+                              {selectedContractForDetail.status === 'ACTIVE' && (
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                                  Đang hiệu lực
+                                </span>
+                              )}
+                              {selectedContractForDetail.status === 'CANCELLED' && (
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800">
+                                  Đã hủy / Hoàn cọc
+                                </span>
+                              )}
+                              {selectedContractForDetail.status === 'COMPLETED' && (
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">
+                                  Hoàn tất vụ
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-stone-500 mt-1">
+                              Ngày ký kết: {selectedContractForDetail.formattedDate || '—'} • Tổng giá trị: <strong className="text-emerald-700 font-bold">{Number(selectedContractForDetail.totalAmount || 0).toLocaleString('vi-VN')} đ</strong>
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedContractForDetail(null)}
+                            className="p-2 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-200/70 transition cursor-pointer"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+
+                        {/* Drawer Body */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
+                          {/* Block 1: Khách hàng & Pháp lý */}
+                          <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-3">
+                            <h4 className="font-heading font-black text-xs text-stone-900 uppercase tracking-wider flex items-center gap-1.5">
+                              <Users className="w-4 h-4 text-emerald-700" />
+                              Hồ Sơ Pháp Lý & Khách Hàng Thuê
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3 text-stone-600">
+                              <div>
+                                <span className="text-[11px] text-stone-400 block">Họ và tên khách hàng</span>
+                                <strong className="text-stone-900 font-bold text-sm">{selectedContractForDetail.renterName || 'Chưa cập nhật'}</strong>
+                              </div>
+                              <div>
+                                <span className="text-[11px] text-stone-400 block">Số điện thoại liên hệ</span>
+                                <strong className="text-stone-800 font-semibold">{selectedContractForDetail.renterPhone || 'Chưa cập nhật'}</strong>
+                              </div>
+                              <div>
+                                <span className="text-[11px] text-stone-400 block">Địa chỉ Email</span>
+                                <span className="text-stone-700">{selectedContractForDetail.renterEmail || 'Chưa cập nhật'}</span>
+                              </div>
+                              <div>
+                                <span className="text-[11px] text-stone-400 block">Địa chỉ thường trú / Liên hệ</span>
+                                <span className="text-stone-700">{selectedContractForDetail.renterAddress || 'Chưa cập nhật'}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Block 2: Thửa Đất & Canh Tác VietGAP */}
+                          <div className="p-4 rounded-2xl bg-white border border-brand-border space-y-3">
+                            <h4 className="font-heading font-black text-xs text-stone-900 uppercase tracking-wider flex items-center gap-1.5">
+                              <Sprout className="w-4 h-4 text-emerald-700" />
+                              Thửa Đất & Quy Trình Canh Tác VietGAP
+                            </h4>
+                            {selectedContractForDetail.rentals && selectedContractForDetail.rentals.length > 0 ? (
+                              selectedContractForDetail.rentals.map((r, idx) => (
+                                <div key={r.rentalId || idx} className="p-3.5 rounded-xl bg-stone-50 border border-stone-200/70 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-stone-900 text-sm">Thửa {r.plotCode}</span>
+                                      <span className="text-stone-400">({r.landName || 'Farmely Land'})</span>
+                                      <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                                        {r.plotArea} m²
+                                      </span>
+                                    </div>
+                                    <span className="text-emerald-700 font-bold">
+                                      {Number(r.totalPrice || 0).toLocaleString('vi-VN')} đ
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-2 text-stone-600">
+                                    <p>Hình thức: <strong className="text-stone-800">{r.cultivationMode === 'ASSISTED' ? 'Ủy thác trọn gói' : 'Tự canh tác'}</strong></p>
+                                    <p>Cây trồng: <strong className="text-stone-800">{r.varietyName || 'Chưa chọn giống'}</strong> {r.growthDays ? `(${r.growthDays} ngày)` : ''}</p>
+                                    <p>Thời hạn thuê: <span className="text-stone-800 font-medium">{r.formattedStartDate} → {r.formattedEndDate}</span></p>
+                                    <p>Thời gian: <span className="text-stone-800 font-medium">{r.termMonths} tháng</span></p>
+                                    <p>Kỹ sư phụ trách: <strong className="text-stone-800">{r.expertName || 'Chưa phân công'}</strong></p>
+                                    <p>Nhân sự phụ trách: <strong className="text-stone-800">{r.staffName || 'Chưa phân công'}</strong></p>
+                                  </div>
+
+                                  <div className="pt-2 border-t border-stone-200/60 flex items-center justify-between text-stone-500">
+                                    <span>Tiến độ chăm sóc VietGAP:</span>
+                                    <span className="font-bold text-emerald-800">
+                                      {r.completedTasks || 0} / {r.totalTasks || 0} nhật ký hoàn thành
+                                    </span>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-stone-400 italic">Không có dữ liệu chi tiết thửa đất.</p>
+                            )}
+                          </div>
+
+                          {/* Block 3: Dòng Tiền & Lịch Sử Giao Dịch */}
+                          <div className="p-4 rounded-2xl bg-white border border-brand-border space-y-3">
+                            <h4 className="font-heading font-black text-xs text-stone-900 uppercase tracking-wider flex items-center gap-1.5">
+                              <Receipt className="w-4 h-4 text-emerald-700" />
+                              Lịch Sử Giao Dịch Dòng Tiền (CSDL Thực)
+                            </h4>
+                            {selectedContractForDetail.transactions && selectedContractForDetail.transactions.length > 0 ? (
+                              <div className="overflow-x-auto rounded-xl border border-stone-200">
+                                <table className="w-full text-left text-xs">
+                                  <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 text-[10px] uppercase font-bold">
+                                    <tr>
+                                      <th className="py-2 px-3">Mã GD</th>
+                                      <th className="py-2 px-3">Số tiền</th>
+                                      <th className="py-2 px-3">Cổng TT</th>
+                                      <th className="py-2 px-3">Thời gian</th>
+                                      <th className="py-2 px-3">Trạng thái</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-stone-100">
+                                    {selectedContractForDetail.transactions.map((tx) => (
+                                      <tr key={tx.transactionId} className="hover:bg-stone-50/50">
+                                        <td className="py-2 px-3 font-mono font-bold text-stone-800">{tx.code}</td>
+                                        <td className="py-2 px-3 font-bold text-emerald-700">
+                                          {Number(tx.amount || 0).toLocaleString('vi-VN')} đ
+                                        </td>
+                                        <td className="py-2 px-3 text-stone-600">{tx.gatewayRef}</td>
+                                        <td className="py-2 px-3 text-stone-500 text-[11px]">{tx.createdAt}</td>
+                                        <td className="py-2 px-3">
+                                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                            tx.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                          }`}>
+                                            {tx.status === 'SUCCESS' ? '✓ Thành công' : tx.status}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <p className="text-stone-400 italic">Chưa ghi nhận giao dịch thanh toán trực tuyến trong CSDL.</p>
+                            )}
+                          </div>
+
+                          {/* Block 4: Thông Tin Hủy / Hoàn Cọc (nếu có) */}
+                          {(selectedContractForDetail.cancellation || selectedContractForDetail.status === 'CANCELLED') && (
+                            <div className="p-4 rounded-2xl bg-rose-50/80 border border-rose-200 space-y-2">
+                              <h4 className="font-heading font-black text-xs text-rose-900 uppercase tracking-wider flex items-center gap-1.5">
+                                <AlertTriangle className="w-4 h-4 text-rose-700" />
+                                Thông Tin Hủy Hợp Đồng & Hoàn Cọc
+                              </h4>
+                              {selectedContractForDetail.cancellation ? (
+                                <div className="space-y-1 text-rose-800">
+                                  <p>Lý do hủy: <strong>"{selectedContractForDetail.cancellation.reason}"</strong></p>
+                                  <p>Trạng thái hủy: <strong className="font-bold">{selectedContractForDetail.cancellation.status}</strong></p>
+                                </div>
+                              ) : (
+                                <p className="text-rose-700">Hợp đồng đã kết thúc hoặc được thanh lý trên hệ thống.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Drawer Footer */}
+                        <div className="px-6 py-4 border-t border-brand-border bg-stone-50 flex items-center justify-between">
+                          <span className="text-[11px] text-stone-400">Hệ thống Quản lý Master Lease Farmely</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedContractForDetail(null)}
+                            className="font-bold text-xs"
+                          >
+                            Đóng lại
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
