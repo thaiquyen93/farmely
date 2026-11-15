@@ -585,32 +585,57 @@ export default function CustomerDashboard() {
     fetchCustomerPlots(true);
 
     // Lắng nghe cập nhật tức thì từ Admin qua BroadcastChannel & Storage Event
-    let bc = null;
+    let bcTelemetry = null;
+    let bcPlots = null;
+    let bcContracts = null;
+
     try {
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
-        bc = new BroadcastChannel('farmely_iot_telemetry');
-        bc.onmessage = (msg) => {
+        bcTelemetry = new BroadcastChannel('farmely_iot_telemetry');
+        bcTelemetry.onmessage = (msg) => {
           if (msg.data?.type === 'TELEMETRY_UPDATED') {
             fetchCustomerPlots(false);
           }
+        };
+
+        bcPlots = new BroadcastChannel('farmely_plot_updates');
+        bcPlots.onmessage = () => {
+          fetchCustomerPlots(false);
+        };
+
+        bcContracts = new BroadcastChannel('farmely_contracts_sync');
+        bcContracts.onmessage = () => {
+          fetchCustomerPlots(false);
         };
       }
     } catch {}
 
     const handleStorage = (e) => {
-      if (e.key === 'farmely_iot_sync_ping') {
+      if (e.key === 'farmely_iot_sync_ping' || e.key === 'farmely_plot_updates_event' || e.key === 'farmely_cancellation_event' || e.key === 'farmely_contracts_sync') {
         fetchCustomerPlots(false);
       }
     };
-    window.addEventListener('storage', handleStorage);
+    const handleFocus = () => {
+      if (!document.hidden) {
+        fetchCustomerPlots(false);
+      }
+    };
 
-    // Cập nhật ngầm định kỳ 30 giây (không hiện loading che màn hình)
-    const pollTimer = setInterval(() => fetchCustomerPlots(false), 30000);
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    // Cập nhật ngầm định kỳ 6 giây (không hiện loading che màn hình)
+    const pollTimer = setInterval(() => fetchCustomerPlots(false), 6000);
 
     return () => { 
       clearInterval(pollTimer);
-      if (bc) { try { bc.close(); } catch {} }
+      if (bcTelemetry) { try { bcTelemetry.close(); } catch {} }
+      if (bcPlots) { try { bcPlots.close(); } catch {} }
+      if (bcContracts) { try { bcContracts.close(); } catch {} }
       window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
     };
   }, [fetchCustomerPlots]);
 

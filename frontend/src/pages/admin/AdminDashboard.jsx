@@ -121,7 +121,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState(() => {
     if (location.search) {
       const p = new URLSearchParams(location.search).get('tab');
-      if (['overview', 'dispatch', 'contracts', 'visits', 'support', 'users', 'audit-logs'].includes(p)) {
+      if (['overview', 'dispatch', 'contracts', 'visits', 'users', 'audit-logs', 'support'].includes(p)) {
         return p;
       }
     }
@@ -130,7 +130,7 @@ export default function AdminDashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   useEffect(() => {
     const tab = new URLSearchParams(location.search).get('tab');
-    if (['overview', 'dispatch', 'contracts', 'visits', 'support', 'users', 'audit-logs'].includes(tab)) setActiveTab(tab);
+    if (['overview', 'dispatch', 'contracts', 'visits', 'users', 'audit-logs', 'support'].includes(tab)) setActiveTab(tab);
   }, [location.search]);
 
   // Sub-tab inside Dispatch: 'staff_tasks' | 'staff_services' | 'expert_plots' | 'expert_issues'
@@ -295,8 +295,8 @@ export default function AdminDashboard() {
   }, []);
 
   // Synchronize All Operational Admin Data
-  const loadAdminData = async () => {
-    setLoadingAnalytics(true);
+  const loadAdminData = async (showLoading = true) => {
+    if (showLoading) setLoadingAnalytics(true);
     try {
       const [
         requestPayload,
@@ -560,8 +560,10 @@ export default function AdminDashboard() {
       setDataError('');
     } catch (error) {
       console.warn('Lỗi nạp dữ liệu Admin:', error);
-      setDataError('Không thể đồng bộ toàn bộ dữ liệu quản trị.');
-      setAnalyticsData(null);
+      if (showLoading) {
+        setDataError('Không thể đồng bộ toàn bộ dữ liệu quản trị.');
+        setAnalyticsData(null);
+      }
       setLoadingAnalytics(false);
     }
   };
@@ -607,7 +609,7 @@ export default function AdminDashboard() {
     loadAdminData();
   }, []);
 
-  // Lắng nghe sự kiện yêu cầu hủy & gia hạn hợp đồng từ khách hàng theo thời gian thực (Real-time không cần F5)
+  // Lắng nghe sự kiện đồng bộ toàn diện thời gian thực (Hợp đồng, Hủy, Gia hạn, CSKH, Thửa đất, Hoạt động nhân sự) không cần F5
   useEffect(() => {
     let isMounted = true;
     const fetchLatestCancellations = async (showToast = false, toastPlot = '') => {
@@ -640,14 +642,50 @@ export default function AdminDashboard() {
       } catch (_) {}
     };
 
-    let bc = null;
+    const triggerSilentSync = () => {
+      if (!isMounted) return;
+      loadAdminData(false);
+      loadSiteVisitsFromDb();
+      fetchLatestCancellations(false);
+    };
+
+    let bcContracts = null;
+    let bcSupport = null;
+    let bcPlots = null;
+    let bcStaff = null;
+    let bcSystem = null;
+
     try {
-      bc = new BroadcastChannel('farmely_contracts_sync');
-      bc.onmessage = (e) => {
-        if (e.data?.type === 'CANCELLATION_REQUEST_CREATED') {
-          fetchLatestCancellations(true, e.data.plotCode);
-        }
-      };
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        bcContracts = new BroadcastChannel('farmely_contracts_sync');
+        bcContracts.onmessage = (e) => {
+          if (e.data?.type === 'CANCELLATION_REQUEST_CREATED') {
+            fetchLatestCancellations(true, e.data.plotCode);
+          } else {
+            triggerSilentSync();
+          }
+        };
+
+        bcSupport = new BroadcastChannel('farmely_support_sync');
+        bcSupport.onmessage = () => {
+          triggerSilentSync();
+        };
+
+        bcPlots = new BroadcastChannel('farmely_plot_updates');
+        bcPlots.onmessage = () => {
+          triggerSilentSync();
+        };
+
+        bcStaff = new BroadcastChannel('farmely_staff_activity_channel');
+        bcStaff.onmessage = () => {
+          triggerSilentSync();
+        };
+
+        bcSystem = new BroadcastChannel('farmely_system_sync');
+        bcSystem.onmessage = () => {
+          triggerSilentSync();
+        };
+      }
     } catch (_) {}
 
     const onStorage = (e) => {
@@ -657,24 +695,50 @@ export default function AdminDashboard() {
           fetchLatestCancellations(true, parsed.plotCode);
         } catch (_) {}
       }
+      if (e.key === 'farmely_support_event' || e.key === 'farmely_plot_updates_event' || e.key === 'farmely_contracts_sync') {
+        triggerSilentSync();
+      }
     };
     const onCustomEvent = (e) => {
       fetchLatestCancellations(true, e.detail?.plotCode);
+      triggerSilentSync();
+    };
+    const onSupportCustomEvent = () => {
+      triggerSilentSync();
+    };
+
+    const onFocus = () => {
+      if (!document.hidden && isMounted) {
+        triggerSilentSync();
+      }
     };
 
     window.addEventListener('storage', onStorage);
     window.addEventListener('farmely_cancellation_created', onCustomEvent);
+    window.addEventListener('farmely_support_event', onSupportCustomEvent);
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
 
-    // Polling định kỳ mỗi 3.5s để luôn nhận lệnh phê duyệt mới tức thì
+    // Polling định kỳ mỗi 4s để cập nhật chỉ số, doanh thu và yêu cầu hỗ trợ mới tức thì
     const intervalId = setInterval(() => {
-      fetchLatestCancellations(false);
-    }, 3500);
+      if (isMounted) {
+        fetchLatestCancellations(false);
+        loadAdminData(false);
+      }
+    }, 4000);
 
     return () => {
       isMounted = false;
-      if (bc) bc.close();
+      if (bcContracts) { try { bcContracts.close(); } catch (_) {} }
+      if (bcSupport) { try { bcSupport.close(); } catch (_) {} }
+      if (bcPlots) { try { bcPlots.close(); } catch (_) {} }
+      if (bcStaff) { try { bcStaff.close(); } catch (_) {} }
+      if (bcSystem) { try { bcSystem.close(); } catch (_) {} }
       window.removeEventListener('storage', onStorage);
       window.removeEventListener('farmely_cancellation_created', onCustomEvent);
+      window.removeEventListener('farmely_support_event', onSupportCustomEvent);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
       clearInterval(intervalId);
     };
   }, []);
@@ -1122,9 +1186,9 @@ export default function AdminDashboard() {
               { id: 'dispatch', label: 'Điều Phối Nhân Sự', icon: UserCheck, count: totalDispatchPendingCount },
               { id: 'contracts', label: 'Hợp Đồng & Gia Hạn', icon: FileText, count: (renewalRequests.filter(r => r.status === 'PENDING').length + refundRequests.filter(r => r.status === 'PENDING').length) || null },
               { id: 'visits', label: 'Lịch Hẹn Tham Quan', icon: Calendar, count: siteVisits.filter(v => v.status === 'PENDING').length },
-              { id: 'support', label: 'CSKH', icon: PhoneCall, count: analyticsData?.kpi?.pendingSupportTickets || null },
               { id: 'users', label: 'Người Dùng & Phân Quyền', icon: Users, count: systemUsers.length },
-              { id: 'audit-logs', label: 'Nhật Ký & Báo Cáo', icon: ShieldCheck, count: null }
+              { id: 'audit-logs', label: 'Nhật Ký & Báo Cáo', icon: ShieldCheck, count: null },
+              { id: 'support', label: 'CSKH', icon: PhoneCall, count: analyticsData?.kpi?.pendingSupportTickets || null }
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1856,10 +1920,10 @@ export default function AdminDashboard() {
               if (transactionCategoryFilter !== 'ALL') {
                 filteredTransactions = filteredTransactions.filter(t => {
                   if (transactionCategoryFilter === 'LEASE') {
-                    return t.category === 'Thuê thửa đất' || (t.referenceCode && t.referenceCode.startsWith('HD-'));
+                    return (t.category === 'Thuê đất' || t.category === 'Thuê thửa đất') && t.type !== 'REFUND';
                   }
                   if (transactionCategoryFilter === 'SERVICE') {
-                    return t.category === 'Dịch vụ phát sinh' || t.referenceCode === 'Dịch vụ phát sinh';
+                    return t.category === 'Dịch vụ' || t.category === 'Dịch vụ phát sinh';
                   }
                   return true;
                 });
@@ -1886,10 +1950,6 @@ export default function AdminDashboard() {
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                           Báo Cáo Điều Hành Hệ Thống
-                        </span>
-                        <span className="text-stone-300">•</span>
-                        <span className="text-xs text-brand-muted font-medium">
-                          Nông Trại Happy Valley Củ Chi
                         </span>
                       </div>
                       <h2 className="text-xl sm:text-2xl font-heading font-black text-brand-dark mt-1">
@@ -2040,7 +2100,7 @@ export default function AdminDashboard() {
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className="w-3 h-3 rounded bg-amber-500"></span>
-                            <span className="font-medium text-stone-600">Dịch vụ phát sinh</span>
+                            <span className="font-medium text-stone-600">Dịch vụ</span>
                           </div>
                         </div>
                       </div>
@@ -2068,7 +2128,7 @@ export default function AdminDashboard() {
                             />
                             <RechartsTooltip content={<CustomRevenueTooltip />} />
                             <Bar dataKey="leaseRevenue" name="Thuê đất (Master Lease)" fill="#047857" radius={[6, 6, 0, 0]} maxBarSize={45} />
-                            <Bar dataKey="serviceRevenue" name="Dịch vụ phát sinh" fill="#f59e0b" radius={[6, 6, 0, 0]} maxBarSize={45} />
+                            <Bar dataKey="serviceRevenue" name="Dịch vụ" fill="#f59e0b" radius={[6, 6, 0, 0]} maxBarSize={45} />
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
@@ -2180,7 +2240,7 @@ export default function AdminDashboard() {
                           <tr className="border-b border-brand-border text-stone-500 font-bold uppercase tracking-wider text-[11px] bg-stone-50/70">
                             <th className="py-3 px-4 rounded-l-xl">Kỳ Doanh Thu</th>
                             <th className="py-3 px-4">Thuê Đất (Master Lease)</th>
-                            <th className="py-3 px-4">Dịch Vụ Phát Sinh</th>
+                            <th className="py-3 px-4">Dịch Vụ</th>
                             <th className="py-3 px-4">Tổng Thực Thu</th>
                             <th className="py-3 px-4 text-center">Tăng Trưởng (MoM)</th>
                             <th className="py-3 px-4 text-center">Số Giao Dịch</th>
@@ -2411,23 +2471,27 @@ export default function AdminDashboard() {
                                   {tx.referenceCode}
                                 </td>
                                 <td className="py-3 px-3">
-                                  <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                                    tx.category === 'Thuê thửa đất' || (tx.referenceCode && tx.referenceCode.startsWith('HD-'))
-                                      ? 'bg-emerald-100 text-emerald-800'
-                                      : 'bg-amber-100 text-amber-800'
-                                  }`}>
-                                    {tx.category === 'Thuê thửa đất' || (tx.referenceCode && tx.referenceCode.startsWith('HD-'))
-                                      ? 'Thuê thửa đất'
-                                      : 'Dịch vụ phát sinh'}
-                                  </span>
+                                  {tx.type === 'REFUND' || tx.category === 'Hoàn cọc' ? (
+                                    <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-rose-100 text-rose-800">
+                                      Hoàn cọc
+                                    </span>
+                                  ) : tx.category === 'Dịch vụ' || tx.category === 'Dịch vụ phát sinh' ? (
+                                    <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-amber-100 text-amber-800">
+                                      Dịch vụ
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-emerald-100 text-emerald-800">
+                                      Thuê đất
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="py-3 px-3 font-medium">
                                   <span className="px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-mono text-[10px]">
                                     {tx.paymentMethod === 'VIETQR' ? 'VietQR 24/7' : tx.paymentMethod === 'VNPAY' ? 'VNPAY Sandbox' : 'Trực tiếp'}
                                   </span>
                                 </td>
-                                <td className="py-3 px-3 text-right font-mono font-bold text-emerald-800">
-                                  {formatVnd(tx.amount)}
+                                <td className={`py-3 px-3 text-right font-mono font-bold ${tx.type === 'REFUND' ? 'text-rose-600' : 'text-emerald-800'}`}>
+                                  {tx.type === 'REFUND' ? `-${formatVnd(tx.amount)}` : `+${formatVnd(tx.amount)}`}
                                 </td>
                                 <td className="py-3 px-3 text-stone-500 font-mono text-[11px]">
                                   {tx.createdAt}

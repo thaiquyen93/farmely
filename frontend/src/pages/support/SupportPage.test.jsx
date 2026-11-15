@@ -79,10 +79,12 @@ describe('Hỗ trợ khách hàng', () => {
     await view.unmount();
   });
 
-  it('hiện phản hồi admin trong chi tiết', async () => {
+  it('hiện phản hồi admin trong chi tiết và không hiện ô trả lời tiếp cho khách hàng', async () => {
     supportApi.detail.mockResolvedValue({ ticket: { ...ticket, status: 'RESPONDED' }, events: [{ id: 1, type: 'REPLY', actorRole: 'ADMIN', body: 'Đã kiểm tra', createdAt: ticket.createdAt }], attachments: [] });
     const view = await mount(<Routes><Route path="/customer/support/:id" element={<SupportPanel/>}/></Routes>, '/customer/support/7');
     expect(view.host.textContent).toContain('Đã kiểm tra');
+    expect(view.host.textContent).not.toContain('Trả lời tiếp');
+    expect(view.host.querySelector('form')).toBeNull();
     await view.unmount();
   });
 });

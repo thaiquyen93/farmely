@@ -1309,7 +1309,7 @@ JOIN plots p ON ins.plot_id = p.plot_id;
           const parsed = new URL(url, 'http://localhost');
           const pathname = parsed.pathname;
           const authHeader = req.headers['authorization'] || '';
-          const actor = (() => {
+          const actor = await (async () => {
             const token = authHeader.replace(/^Bearer\s+/i, '').trim();
             if (token && token.split('.').length === 3) {
               try {
@@ -1319,9 +1319,32 @@ JOIN plots p ON ins.plot_id = p.plot_id;
                 return { id, role };
               } catch (_) {}
             }
-            if (token.includes('USR-004') || token.includes('admin') || token.includes('ADMIN')) return { id: 11, role: 'ADMIN' };
+            if (token.includes('USR-004') || token.includes('admin') || token.includes('ADMIN') || token.includes('-11-')) return { id: 11, role: 'ADMIN' };
             if (token.includes('USR-002') || token.includes('expert') || token.includes('EXPERT')) return { id: 5, role: 'EXPERT' };
             if (token.includes('USR-003') || token.includes('worker') || token.includes('STAFF')) return { id: 8, role: 'STAFF' };
+
+            // Token dạng: farmely-jwt-token-<userId>-<timestamp> hoặc demo-token-<id>
+            const farmelyMatch = token.match(/^(?:farmely-jwt-token|demo-token)-(\d+)/);
+            if (farmelyMatch) {
+              const uId = Number(farmelyMatch[1]);
+              try {
+                const uRes = await getPgPool().query(`
+                  SELECT u.user_id as id, r.role_name as role 
+                  FROM users u 
+                  JOIN roles r ON u.role_id = r.role_id 
+                  WHERE u.user_id = $1
+                `, [uId]);
+                if (uRes.rows.length > 0) {
+                  const rName = String(uRes.rows[0].role).toUpperCase();
+                  const role = (rName === 'FIELD_WORKER' || rName === 'WORKER') ? 'STAFF' : rName;
+                  return { id: uId, role };
+                }
+              } catch (_) {}
+              if (uId === 11) return { id: 11, role: 'ADMIN' };
+              if (uId === 5 || uId === 6 || uId === 7) return { id: uId, role: 'EXPERT' };
+              if (uId === 8 || uId === 9 || uId === 10) return { id: uId, role: 'STAFF' };
+            }
+
             return { id: 1, role: 'CUSTOMER' };
           })();
 
@@ -1453,6 +1476,7 @@ JOIN plots p ON ins.plot_id = p.plot_id;
               });
               const replyText = String(body.body || '').trim();
               if (!replyText) throw new Error('Nội dung phản hồi không được để trống');
+              if (actor.role !== 'ADMIN') throw new Error('Chỉ Ban Quản Trị / CSKH mới có quyền gửi phản hồi');
 
               await getPgPool().query(`
                 INSERT INTO support_events (ticket_id, actor_id, actor_role, type, body, created_at)
@@ -1999,14 +2023,24 @@ SELECT json_build_object(
           pt.status,
           TO_CHAR(pt.created_at, 'HH24:MI - DD/MM/YYYY') AS "createdAt",
           TO_CHAR(pt.created_at AT TIME ZONE 'Asia/Bangkok', 'MM/YYYY') AS "month",
-          CASE WHEN pt.service_request_id IS NOT NULL THEN 'Dịch vụ phát sinh' ELSE 'Thuê thửa đất' END AS "category",
-          COALESCE(c.contract_number, sr_c.contract_number, 'Dịch vụ phát sinh') AS "referenceCode",
+          CASE 
+            WHEN pt.type = 'REFUND' THEN 'Hoàn cọc'
+            WHEN pt.service_request_id IS NOT NULL THEN 'Dịch vụ' 
+            ELSE 'Thuê đất' 
+          END AS "category",
+          CASE 
+            WHEN pt.service_request_id IS NOT NULL THEN COALESCE(s.service_name, 'Dịch vụ') || ' • ' || COALESCE(sr_c.contract_number, 'Thửa ' || sr_p.plot_code)
+            WHEN pt.type = 'REFUND' THEN 'Hoàn tiền cọc • ' || COALESCE(c.contract_number, 'HĐ')
+            ELSE COALESCE(c.contract_number, 'Thuê đất')
+          END AS "referenceCode",
           COALESCE(u.full_name, sr_u.full_name) AS "customerName"
         FROM payment_transactions pt
         LEFT JOIN contracts c ON pt.contract_id = c.contract_id
         LEFT JOIN users u ON c.renter_id = u.user_id
         LEFT JOIN service_requests sr ON pt.service_request_id = sr.request_id
+        LEFT JOIN services s ON sr.service_id = s.service_id
         LEFT JOIN rentals sr_r ON sr.rental_id = sr_r.rental_id
+        LEFT JOIN plots sr_p ON sr_r.plot_id = sr_p.plot_id
         LEFT JOIN contracts sr_c ON sr_r.contract_id = sr_c.contract_id
         LEFT JOIN users sr_u ON sr_c.renter_id = sr_u.user_id
         WHERE pt.status = 'SUCCESS'

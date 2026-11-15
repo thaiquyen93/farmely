@@ -55,6 +55,20 @@ function StatusSelect({ ticket, busy, onChange }) {
   </select>;
 }
 
+export function broadcastSupportEvent(payload) {
+  try {
+    if (typeof window !== 'undefined') {
+      if (window.BroadcastChannel) {
+        const bc = new BroadcastChannel('farmely_support_sync');
+        bc.postMessage(payload);
+        bc.close();
+      }
+      localStorage.setItem('farmely_support_event', JSON.stringify({ ...payload, _ts: Date.now() }));
+      window.dispatchEvent(new CustomEvent('farmely_support_event', { detail: payload }));
+    }
+  } catch (_) {}
+}
+
 export function SupportPanel({ admin = false, selectedTicketId = null, onSelectTicket, onBack }) {
   const { user, token, login } = useAuthStore();
   const [authReady, setAuthReady] = useState(true);
@@ -72,8 +86,19 @@ export function SupportPanel({ admin = false, selectedTicketId = null, onSelectT
   const root = '/customer/support';
 
   const refresh = async () => {
-    if (id) setDetail(await supportApi.detail(id));
-    else setTickets(await supportApi.list(admin ? filters : {}));
+    try {
+      if (id) {
+        const res = await supportApi.detail(id);
+        setDetail(res);
+      } else {
+        const res = await supportApi.list(admin ? filters : {});
+        setTickets(res || []);
+      }
+    } catch (e) {
+      if (!detail && (!tickets || tickets.length === 0)) {
+        setError(e.message);
+      }
+    }
   };
   useEffect(() => {
     if (!/^(demo-token-|farmely-jwt-token-)/.test(token || '') || upgradeAttempted.current) return;
@@ -83,6 +108,50 @@ export function SupportPanel({ admin = false, selectedTicketId = null, onSelectT
     }
   }, [token, user?.email]);
   useEffect(() => { if (authReady) refresh().catch((e) => setError(e.message)); }, [id, filters.q, filters.category, filters.status, authReady]);
+
+  // Đồng bộ thời gian thực qua BroadcastChannel, Storage Event, Focus & Polling (Không cần F5 / refresh trang)
+  useEffect(() => {
+    let active = true;
+    const silentRefresh = () => {
+      if (!active) return;
+      refresh().catch(() => {});
+    };
+
+    let bc = null;
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        bc = new BroadcastChannel('farmely_support_sync');
+        bc.onmessage = () => silentRefresh();
+      }
+    } catch (_) {}
+
+    const onStorage = (e) => {
+      if (e.key === 'farmely_support_event') silentRefresh();
+    };
+    const onCustom = () => silentRefresh();
+    const onFocus = () => silentRefresh();
+    const onVisibility = () => {
+      if (!document.hidden) silentRefresh();
+    };
+
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('farmely_support_event', onCustom);
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    // Polling ngầm mỗi 3 giây
+    const timer = setInterval(silentRefresh, 3000);
+
+    return () => {
+      active = false;
+      if (bc) { try { bc.close(); } catch (_) {} }
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('farmely_support_event', onCustom);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+      clearInterval(timer);
+    };
+  }, [id, filters.q, filters.category, filters.status, admin]);
 
   const run = async (fn) => {
     setBusy(true); setError('');
@@ -99,12 +168,20 @@ export function SupportPanel({ admin = false, selectedTicketId = null, onSelectT
       const created = await supportApi.create(form);
       if (file) await supportApi.upload(created.id, file);
       setForm({ category: 'ACCOUNT', description: '' }); setFile(null);
+      broadcastSupportEvent({ type: 'TICKET_CREATED', ticketId: created.id });
     });
   };
-  const changeStatus = (ticketId, status) => run(() => supportApi.status(ticketId, status));
+  const changeStatus = (ticketId, status) => run(async () => {
+    await supportApi.status(ticketId, status);
+    broadcastSupportEvent({ type: 'STATUS_CHANGED', ticketId, status });
+  });
   const sendReply = (e) => {
     e.preventDefault();
-    run(async () => { await supportApi.reply(id, reply); setReply(''); });
+    run(async () => {
+      await supportApi.reply(id, reply);
+      setReply('');
+      broadcastSupportEvent({ type: 'REPLY_ADDED', ticketId: id });
+    });
   };
 
   return <div className={`${admin ? 'w-full' : 'mx-auto max-w-[1440px] px-4 pb-20 pt-7 sm:px-6'} space-y-6 text-[#173b2e]`}>
@@ -136,7 +213,7 @@ export function SupportPanel({ admin = false, selectedTicketId = null, onSelectT
       <section className={`${card} flex flex-wrap items-center justify-between gap-4`}><div><p className="text-sm text-stone-500">CSKH / Yêu cầu #{detail.ticket.id}</p><h2 className="mt-1 text-2xl font-black">{detail.ticket.title}</h2><p className="mt-2 text-sm text-stone-600">{admin && <><strong>{detail.ticket.customerName || `Khách #${detail.ticket.customerId}`}</strong><span className="mx-2">·</span></>}{date(detail.ticket.createdAt)}</p></div><div className="flex items-center gap-3"><StatusBadge status={detail.ticket.status}/>{admin && <StatusSelect ticket={detail.ticket} busy={busy} onChange={changeStatus}/>}</div></section>
       <div className={`grid items-start gap-6 ${admin ? 'xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,.65fr)]' : ''}`}><div className="space-y-6"><section className={card}><h3 className="mb-4 flex items-center gap-2 text-lg font-black"><MessageSquareText size={20} className="text-[#075b3c]"/>Nội dung khách gửi</h3><p className="whitespace-pre-wrap text-sm leading-7">{detail.ticket.description}</p>{detail.attachments?.length > 0 && <div className="mt-5"><p className="mb-2 flex items-center gap-2 text-sm font-bold"><Paperclip size={16}/>Ảnh đính kèm ({detail.attachments.length})</p><div className="flex flex-wrap gap-3">{detail.attachments.map((f) => <Attachment key={f.id} ticketId={id} file={f}/>)}</div></div>}</section>
         {!admin && <section className={card}><h3 className="mb-4 text-lg font-black">Phản hồi từ Farmely</h3><div className="space-y-3">{detail.events?.filter((event) => event.type === 'REPLY').map((event) => <div key={event.id} className={`rounded-xl p-4 ${event.actorRole === 'ADMIN' ? 'bg-emerald-50' : 'bg-[#f5f3eb]'}`}><p className="text-xs font-bold text-[#075b3c]">{event.actorRole === 'ADMIN' ? 'CSKH Farmely' : 'Bạn'} · {date(event.createdAt)}</p><p className="mt-2 whitespace-pre-wrap text-sm">{event.body}</p></div>)}{!detail.events?.some((event) => event.type === 'REPLY') && <p className="text-sm text-stone-500">Chưa có phản hồi.</p>}</div></section>}
-        {visibleStatus(detail.ticket.status) !== 'CLOSED' && <form onSubmit={sendReply} className={`${card} space-y-4`}><h3 className="flex items-center gap-2 text-lg font-black"><Send size={20} className="text-[#075b3c]"/>{admin ? 'Trả lời khách hàng' : 'Trả lời tiếp'}</h3><textarea aria-label="Nội dung phản hồi" required maxLength={10000} rows={5} className={field} placeholder="Nhập phản hồi..." value={reply} onChange={(e) => setReply(e.target.value)}/><button disabled={busy} className={primary}><Send size={17}/>Gửi phản hồi</button></form>}
+        {admin && visibleStatus(detail.ticket.status) !== 'CLOSED' && <form onSubmit={sendReply} className={`${card} space-y-4`}><h3 className="flex items-center gap-2 text-lg font-black"><Send size={20} className="text-[#075b3c]"/>Trả lời khách hàng</h3><textarea aria-label="Nội dung phản hồi" required maxLength={10000} rows={5} className={field} placeholder="Nhập phản hồi..." value={reply} onChange={(e) => setReply(e.target.value)}/><button disabled={busy} className={primary}><Send size={17}/>Gửi phản hồi</button></form>}
       </div>{admin && <aside className={card}><h3 className="mb-3 flex items-center gap-2 text-lg font-black"><Headphones size={20} className="text-[#075b3c]"/>Thông tin yêu cầu</h3><dl className="divide-y text-sm"><div className="py-3"><dt className="text-stone-500">Khách hàng</dt><dd className="mt-1 font-bold">{detail.ticket.customerName || `Khách #${detail.ticket.customerId}`}</dd></div><div className="py-3"><dt className="text-stone-500">Email</dt><dd className="mt-1 break-all">{detail.ticket.customerEmail || '—'}</dd></div><div className="py-3"><dt className="text-stone-500">Danh mục</dt><dd className="mt-1">{categories[detail.ticket.category]}</dd></div><div className="py-3"><dt className="text-stone-500">Thời gian tạo</dt><dd className="mt-1">{date(detail.ticket.createdAt)}</dd></div><div className="py-3"><dt className="text-stone-500">Mã yêu cầu</dt><dd className="mt-1 font-bold">#{detail.ticket.id}</dd></div></dl></aside>}</div>
     </>}
   </div>;
