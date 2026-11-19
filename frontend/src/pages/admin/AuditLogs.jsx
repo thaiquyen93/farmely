@@ -80,8 +80,9 @@ export default function AuditLogs() {
         const isAuth = ['AUTH_LOGIN', 'LOGIN', 'REGISTER', 'PASSWORD_RESET'].includes(log.action);
         if (!isAuth) return false;
       } else if (filterAction === 'USER') {
-        const isUser = ['CHANGE_USER_STATUS', 'UPDATE_ROLE', 'LOCK_USER'].includes(log.action) ||
-          log.entityType === 'users';
+        const isUser = ['CHANGE_USER_STATUS', 'CHANGE_USER_ROLE', 'UPDATE_ROLE', 'LOCK_USER'].includes(log.action) ||
+          log.entityType === 'users' ||
+          log.entityType === 'USER';
         if (!isUser) return false;
       } else if (filterAction === 'TASK') {
         const isTask = ['TASK_FINISH', 'CARE_TASK', 'HARVEST'].includes(log.action) ||
@@ -119,6 +120,9 @@ export default function AuditLogs() {
         return <span className="px-2 py-0.5 rounded-md font-mono font-bold text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-200">ĐĂNG NHẬP</span>;
       case 'CHANGE_USER_STATUS':
         return <span className="px-2 py-0.5 rounded-md font-mono font-bold text-[10px] bg-purple-100 text-purple-800 border border-purple-200">ĐỔI TRẠNG THÁI</span>;
+      case 'CHANGE_USER_ROLE':
+      case 'UPDATE_ROLE':
+        return <span className="px-2 py-0.5 rounded-md font-mono font-bold text-[10px] bg-indigo-100 text-indigo-800 border border-indigo-200">PHÂN QUYỀN RBAC</span>;
       case 'PASSWORD_RESET':
         return <span className="px-2 py-0.5 rounded-md font-mono font-bold text-[10px] bg-sky-100 text-sky-800 border border-sky-200">MẬT KHẨU</span>;
       default:

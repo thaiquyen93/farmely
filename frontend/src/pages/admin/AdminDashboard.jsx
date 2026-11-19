@@ -81,6 +81,63 @@ function formatVnd(amount) {
   return Number(amount || 0).toLocaleString('vi-VN') + ' đ';
 }
 
+const RBAC_ROLE_ORDER = ['ADMIN', 'EXPERT', 'STAFF', 'CUSTOMER'];
+
+const RBAC_ROLE_CONFIG = {
+  ADMIN: {
+    role: 'ADMIN',
+    label: 'Quản Trị Viên',
+    badgeClass: 'bg-purple-50 text-purple-800 border-purple-200',
+    cardClass: 'border-purple-200 bg-purple-50/50',
+    activeRing: 'ring-2 ring-purple-500 border-purple-400 bg-purple-50',
+    scope: 'Toàn quyền cấu hình & Quản trị hệ thống',
+    permissions: [
+      'Quản trị người dùng & phân quyền (RBAC)',
+      'Phê duyệt hợp đồng, gia hạn & hoàn cọc',
+      'Điều phối nhân sự, CSKH & dữ liệu nền tảng'
+    ]
+  },
+  EXPERT: {
+    role: 'EXPERT',
+    label: 'Chuyên Gia Nông Nghiệp',
+    badgeClass: 'bg-sky-50 text-sky-800 border-sky-200',
+    cardClass: 'border-sky-200 bg-sky-50/50',
+    activeRing: 'ring-2 ring-sky-500 border-sky-400 bg-sky-50',
+    scope: 'Tư vấn kỹ thuật & Chuẩn hóa quy trình VietGAP',
+    permissions: [
+      'Thiết lập quy trình VietGAP & giống cây trồng',
+      'Xử lý sự cố nông học & cảnh báo IoT',
+      'Tư vấn kỹ thuật trực tiếp cho khách hàng'
+    ]
+  },
+  STAFF: {
+    role: 'STAFF',
+    label: 'Chuyên Viên Lao Động',
+    badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
+    cardClass: 'border-amber-200 bg-amber-50/50',
+    activeRing: 'ring-2 ring-amber-500 border-amber-400 bg-amber-50',
+    scope: 'Kỹ thuật viên chăm sóc hiện trường',
+    permissions: [
+      'Thực hiện tác vụ chăm sóc & lịch tham quan',
+      'Cập nhật nhật ký hiện trường & minh chứng ảnh',
+      'Ghi nhận sản lượng thu hoạch & bàn giao thửa'
+    ]
+  },
+  CUSTOMER: {
+    role: 'CUSTOMER',
+    label: 'Khách Hàng',
+    badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+    cardClass: 'border-emerald-200 bg-emerald-50/50',
+    activeRing: 'ring-2 ring-emerald-500 border-emerald-400 bg-emerald-50',
+    scope: 'Thuê thửa đất & Theo dõi vụ mùa',
+    permissions: [
+      'Thuê thửa đất & ký hợp đồng canh tác',
+      'Theo dõi tiến độ vụ mùa & chỉ số cảm biến',
+      'Đặt dịch vụ lẻ, gửi CSKH & gia hạn hợp đồng'
+    ]
+  }
+};
+
 function CustomRevenueTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {
     const lease = payload.find(p => p.dataKey === 'leaseRevenue')?.value || 0;
@@ -222,7 +279,11 @@ export default function AdminDashboard() {
   const [selectedUserToEdit, setSelectedUserToEdit] = useState(null);
   const [userEditStatus, setUserEditStatus] = useState('ACTIVE');
   const [isUpdatingUser, setIsUpdatingUser] = useState(false);
+  const [selectedUserForRole, setSelectedUserForRole] = useState(null);
+  const [userEditRole, setUserEditRole] = useState('CUSTOMER');
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
   const [userRoleFilter, setUserRoleFilter] = useState('ALL');
+  const [userSearchQuery, setUserSearchQuery] = useState('');
 
   // 11. IoT Microclimate Alerts & Weather (BR18 / UC13 / Task 1.4 & 2.1)
   const [iotAlerts, setIotAlerts] = useState([]);
@@ -498,25 +559,13 @@ export default function AdminDashboard() {
       setSystemUsers(
         users.map((account) => {
           const rawRole = account.role === 'FIELD_WORKER' ? 'STAFF' : (account.role || 'CUSTOMER');
-          let roleLabel = 'Chuyên Viên Lao Động';
-          let scope = 'Kỹ thuật viên chăm sóc hiện trường';
+          const roleMeta = RBAC_ROLE_CONFIG[rawRole] || RBAC_ROLE_CONFIG.CUSTOMER;
+          let scope = roleMeta.scope;
 
-          if (rawRole === 'CUSTOMER') {
-            roleLabel = 'Khách Hàng';
-            scope = 'Thuê thửa đất & Theo dõi vụ mùa';
-          } else if (rawRole === 'EXPERT') {
-            roleLabel = 'Chuyên Gia Nông Nghiệp';
-            scope = account.email === 'expert@farmely.vn' || String(account.fullName || '').includes('Nam')
-              ? 'Phụ trách chuyên môn nông học & Phác đồ VietGAP'
-              : 'Tư vấn kỹ thuật & Chuẩn hóa quy trình';
-          } else if (rawRole === 'ADMIN') {
-            roleLabel = 'Quản Trị Viên';
-            scope = 'Toàn quyền cấu hình & Quản trị hệ thống';
-          } else if (rawRole === 'STAFF') {
-            roleLabel = 'Chuyên Viên Lao Động';
-            scope = account.email === 'worker@farmely.vn' || String(account.fullName || '').includes('Lực')
-              ? 'Phụ trách thực địa & Giám sát chăm sóc thửa P-01 -> P-20'
-              : 'Kỹ thuật viên chăm sóc hiện trường';
+          if (rawRole === 'EXPERT' && (account.email === 'expert@farmely.vn' || String(account.fullName || '').includes('Nam'))) {
+            scope = 'Phụ trách chuyên môn nông học & Phác đồ VietGAP';
+          } else if (rawRole === 'STAFF' && (account.email === 'worker@farmely.vn' || String(account.fullName || '').includes('Lực'))) {
+            scope = 'Phụ trách thực địa & Giám sát chăm sóc thửa P-01 -> P-20';
           }
 
           return {
@@ -524,7 +573,7 @@ export default function AdminDashboard() {
             fullName: account.fullName || account.full_name,
             email: account.email,
             role: rawRole,
-            roleLabel,
+            roleLabel: roleMeta.label,
             plotsRented: scope,
             status: account.status || 'ACTIVE',
             lastActive: account.updatedAt ? new Date(account.updatedAt).toLocaleString('vi-VN') : 'Đang hoạt động'
@@ -1015,6 +1064,22 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleRejectRenewal = async (renewalId) => {
+    const reason = window.prompt(`Nhập lý do từ chối yêu cầu gia hạn #RNW-${renewalId} (tùy chọn):`, '');
+    if (reason === null) return;
+    try {
+      await apiFetch(`/api/contracts/renewals/${renewalId}/reject`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: reason.trim() })
+      });
+      triggerSuccessToast(`Đã từ chối yêu cầu gia hạn #RNW-${renewalId}.`);
+      setRenewalRequests((prev) => prev.map((r) => (r.id === renewalId ? { ...r, status: 'REJECTED' } : r)));
+      await loadAdminData();
+    } catch (error) {
+      setDataError(error.message || 'Không thể từ chối yêu cầu gia hạn hợp đồng.');
+    }
+  };
+
   // 7. Xác nhận lịch tham quan (SCR-PUB-05)
   const handleConfirmVisit = async (visitId) => {
     try {
@@ -1064,6 +1129,69 @@ export default function AdminDashboard() {
       setDataError(error.message || 'Không thể cập nhật trạng thái người dùng.');
     } finally {
       setIsUpdatingUser(false);
+    }
+  };
+
+  // 8b. Phân quyền vai trò người dùng ADMIN / EXPERT / STAFF / CUSTOMER (UC21 RBAC)
+  const handleUpdateUserRole = async (e) => {
+    e.preventDefault();
+    if (!selectedUserForRole) return;
+    const roleMeta = RBAC_ROLE_CONFIG[userEditRole] || RBAC_ROLE_CONFIG.CUSTOMER;
+    const activeAdminsOtherThanTarget = systemUsers.filter(
+      (u) => u.role === 'ADMIN' && u.status === 'ACTIVE' && Number(u.id) !== Number(selectedUserForRole.id)
+    ).length;
+
+    if (selectedUserForRole.role === 'ADMIN' && userEditRole !== 'ADMIN' && activeAdminsOtherThanTarget <= 0) {
+      setDataError('Không thể hạ quyền Quản Trị Viên hoạt động cuối cùng của hệ thống.');
+      return;
+    }
+
+    setIsUpdatingRole(true);
+    setDataError('');
+    try {
+      await apiFetch(`/api/users/${selectedUserForRole.id}/role`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          role: userEditRole,
+          actorId: user?.userId || user?.id || null
+        })
+      });
+
+      setSystemUsers((prev) =>
+        prev.map((u) =>
+          Number(u.id) === Number(selectedUserForRole.id)
+            ? {
+                ...u,
+                role: userEditRole,
+                roleLabel: roleMeta.label,
+                plotsRented: roleMeta.scope
+              }
+            : u
+        )
+      );
+
+      try {
+        const syncData = {
+          type: 'USER_ROLE_CHANGED',
+          userId: selectedUserForRole.id,
+          email: selectedUserForRole.email,
+          role: userEditRole,
+          timestamp: Date.now()
+        };
+        const bc = new BroadcastChannel('farmely_system_sync');
+        bc.postMessage(syncData);
+        setTimeout(() => { try { bc.close(); } catch (_) {} }, 500);
+        localStorage.setItem('farmely_user_role_sync', JSON.stringify(syncData));
+        window.dispatchEvent(new CustomEvent('farmely_user_role_changed', { detail: syncData }));
+      } catch (_) {}
+
+      triggerSuccessToast(`Đã phân quyền ${selectedUserForRole.fullName} thành ${roleMeta.label} (${userEditRole})!`);
+      setSelectedUserForRole(null);
+      await loadAdminData();
+    } catch (error) {
+      setDataError(error.message || 'Không thể cập nhật phân quyền người dùng.');
+    } finally {
+      setIsUpdatingRole(false);
     }
   };
 
@@ -2989,50 +3117,95 @@ export default function AdminDashboard() {
                         Hiện chưa có yêu cầu gia hạn vụ mùa nào cần xử lý.
                       </div>
                     ) : (
-                      renewalRequests.map((req) => (
-                        <div
-                          key={req.id}
-                          className="p-5 rounded-2xl border border-brand-border bg-white shadow-sm space-y-3 text-xs"
-                        >
-                          <div className="flex items-center justify-between pb-2 border-b border-brand-border/60">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-brand-green text-sm">RNW-{req.id}</span>
-                              <span className="text-stone-400">| Hợp đồng: {req.contractCode || req.contractNumber || 'HĐ-CTR'}</span>
-                              <span className="rounded-md bg-stone-100 px-2 py-0.5 font-bold text-stone-700">
-                                Thửa {req.plotCode || 'P-05'}
-                              </span>
-                            </div>
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                              req.status === 'PENDING' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                            }`}>
-                              {req.status === 'PENDING' ? '⏳ Chờ Ban Quản Trị phê duyệt' : '✓ Đã phê duyệt & Sẵn sàng vụ mới'}
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-stone-600">
-                            <p>Khách hàng: <strong className="text-brand-dark">{req.customerName}</strong> ({req.customerPhone || '0912345678'})</p>
-                            <p>Vụ đăng ký: <strong className="text-brand-dark">Vụ {req.seasonNumber || 2}: {req.varietyName || 'Dưa leo baby F1'}</strong> (+{req.seasonsCount || 1} Vụ)</p>
-                            <p>Hình thức canh tác: <strong className="text-stone-800">{req.cultivationMode === 'SELF' ? 'Tự canh tác (Self-Growing)' : 'Ủy thác trọn gói (Assisted-Growing)'}</strong></p>
-                            <p>Thanh toán: <strong className="text-emerald-700 font-bold">{Number(req.additionalAmount || 1200000).toLocaleString('vi-VN')} đ</strong> (VNPay - Đã thanh toán 100%)</p>
-                            <p className="sm:col-span-2 text-stone-500">
-                              Thời hạn vụ mới đến: <strong className="text-stone-800">{req.newEndDate || '2027-06-11'}</strong> • Tự động kích hoạt quy trình chuẩn VietGAP sau 4 ngày bảo trì (BR23).
-                            </p>
-                          </div>
-
-                          {req.status === 'PENDING' && (
-                            <div className="pt-2 flex justify-end gap-2 border-t border-brand-border/40">
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                onClick={() => handleApproveRenewal(req.id)}
-                                className="bg-emerald-700 hover:bg-emerald-800 font-bold cursor-pointer"
-                              >
-                                ✓ Phê duyệt gia hạn & Phân bổ kỹ thuật
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      ))
+                      <div className="overflow-x-auto rounded-2xl border border-brand-border bg-white shadow-sm">
+                        <table className="min-w-full divide-y divide-brand-border/70 text-left text-xs">
+                          <thead className="bg-stone-50 text-[11px] font-bold uppercase tracking-wider text-stone-500">
+                            <tr>
+                              <th className="px-4 py-3">Mã / Hợp đồng</th>
+                              <th className="px-4 py-3">Thửa đất</th>
+                              <th className="px-4 py-3">Khách hàng</th>
+                              <th className="px-4 py-3">Vụ &amp; Giống đăng ký</th>
+                              <th className="px-4 py-3">Thanh toán &amp; Thời hạn</th>
+                              <th className="px-4 py-3">Trạng thái</th>
+                              <th className="px-4 py-3 text-right">Thao tác</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-brand-border/50 bg-white">
+                            {renewalRequests.map((req) => (
+                              <tr key={req.id} className="hover:bg-stone-50/70 transition-colors">
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className="font-mono font-bold text-brand-green block">RNW-{req.id}</span>
+                                  <span className="text-[11px] text-stone-400">{req.contractCode || req.contractNumber || 'HĐ-CTR'}</span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className="rounded-md bg-stone-100 px-2 py-0.5 font-bold text-stone-800">
+                                    Thửa {req.plotCode || 'P-05'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <strong className="text-brand-dark block">{req.customerName}</strong>
+                                  <span className="text-[11px] text-stone-500">{req.customerPhone || '—'}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <strong className="text-brand-dark block">
+                                    Vụ {req.seasonNumber || 2}: {req.varietyName || 'Dưa leo baby F1'} (+{req.seasonsCount || 1} Vụ)
+                                  </strong>
+                                  <span className="text-[11px] text-stone-500">
+                                    {req.cultivationMode === 'SELF' ? 'Tự canh tác (Self-Growing)' : 'Ủy thác trọn gói (Assisted-Growing)'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <strong className="text-emerald-700 font-bold block">
+                                    {Number(req.additionalAmount || 1200000).toLocaleString('vi-VN')} đ
+                                  </strong>
+                                  <span className="text-[11px] text-stone-500">
+                                    Đến: {req.newEndDate || '—'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                    req.status === 'PENDING'
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : req.status === 'REJECTED'
+                                        ? 'bg-rose-100 text-rose-800'
+                                        : 'bg-emerald-100 text-emerald-800'
+                                  }`}>
+                                    {req.status === 'PENDING'
+                                      ? '⏳ Chờ duyệt'
+                                      : req.status === 'REJECTED'
+                                        ? '✕ Đã từ chối'
+                                        : '✓ Đã phê duyệt'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-right">
+                                  {req.status === 'PENDING' ? (
+                                    <div className="inline-flex items-center gap-2">
+                                      <Button
+                                        variant="primary"
+                                        size="sm"
+                                        onClick={() => handleApproveRenewal(req.id)}
+                                        className="bg-emerald-700 hover:bg-emerald-800 font-bold cursor-pointer text-[11px]"
+                                      >
+                                        ✓ Phê duyệt
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleRejectRenewal(req.id)}
+                                        className="border-rose-300 text-rose-700 hover:bg-rose-50 font-bold cursor-pointer text-[11px]"
+                                      >
+                                        ✕ Từ chối
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[11px] text-stone-400">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </div>
                 )}
@@ -3395,10 +3568,10 @@ export default function AdminDashboard() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-3">
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Quản Trị Người Dùng & Phân Quyền (RBAC)
+                      Quản Trị Người Dùng &amp; Phân Quyền (RBAC)
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
-                      Danh sách tài khoản nội bộ và khách hàng trên hệ sinh thái Farmely.
+                      Phân quyền vai trò hệ thống (Admin, Expert, Staff, Customer) và quản lý trạng thái tài khoản.
                     </p>
                   </div>
                   <span className="text-xs font-bold text-stone-500">
@@ -3406,43 +3579,57 @@ export default function AdminDashboard() {
                   </span>
                 </div>
 
-                {/* Bộ lọc vai trò người dùng (Role Filter Chips) */}
-                <div className="flex flex-wrap items-center gap-2 pt-1 pb-1">
-                  {[
-                    { id: 'ALL', label: 'Tất cả', count: systemUsers.length },
-                    { id: 'STAFF', label: 'Chuyên Viên Lao Động', count: systemUsers.filter((u) => u.role === 'STAFF').length },
-                    { id: 'EXPERT', label: 'Chuyên Gia Nông Nghiệp', count: systemUsers.filter((u) => u.role === 'EXPERT').length },
-                    { id: 'CUSTOMER', label: 'Khách Hàng', count: systemUsers.filter((u) => u.role === 'CUSTOMER').length },
-                    { id: 'ADMIN', label: 'Quản Trị Viên', count: systemUsers.filter((u) => u.role === 'ADMIN').length }
-                  ].map((chip) => {
-                    const isSelected = userRoleFilter === chip.id;
-                    return (
-                      <button
-                        key={chip.id}
-                        type="button"
-                        onClick={() => setUserRoleFilter(chip.id)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer ${
-                          isSelected
-                            ? 'bg-brand-green text-white shadow-brand-green/20'
-                            : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
-                        }`}
-                      >
-                        <span>{chip.label}</span>
-                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                          isSelected ? 'bg-white/20 text-white' : 'bg-white text-stone-600'
-                        }`}>
-                          {chip.count}
-                        </span>
-                      </button>
-                    );
-                  })}
+                {/* Bộ lọc vai trò người dùng & Tìm kiếm */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1 pb-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {[
+                      { id: 'ALL', label: 'Tất cả', count: systemUsers.length },
+                      ...RBAC_ROLE_ORDER.map((roleKey) => ({
+                        id: roleKey,
+                        label: RBAC_ROLE_CONFIG[roleKey].label,
+                        count: systemUsers.filter((u) => u.role === roleKey).length
+                      }))
+                    ].map((chip) => {
+                      const isSelected = userRoleFilter === chip.id;
+                      return (
+                        <button
+                          key={chip.id}
+                          type="button"
+                          onClick={() => setUserRoleFilter(chip.id)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer ${
+                            isSelected
+                              ? 'bg-brand-green text-white shadow-brand-green/20'
+                              : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
+                          }`}
+                        >
+                          <span>{chip.label}</span>
+                          <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                            isSelected ? 'bg-white/20 text-white' : 'bg-white text-stone-600'
+                          }`}>
+                            {chip.count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="relative w-full lg:w-72">
+                    <Search className="w-4 h-4 absolute left-3 top-2.5 text-stone-400" />
+                    <input
+                      type="text"
+                      placeholder="Tìm theo họ tên hoặc email..."
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-brand-border bg-stone-50 text-xs focus:outline-none focus:ring-1 focus:ring-brand-green"
+                    />
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-brand-border bg-brand-cream/60 text-stone-600 font-bold uppercase tracking-wider text-[10px]">
-                        <th className="p-3">Họ Tên & Email</th>
+                        <th className="p-3">Họ Tên &amp; Email</th>
                         <th className="p-3">Vai Trò (Role)</th>
                         <th className="p-3">Quyền Hạn / Phạm Vi</th>
                         <th className="p-3">Trạng Thái</th>
@@ -3451,50 +3638,84 @@ export default function AdminDashboard() {
                     </thead>
                     <tbody className="divide-y divide-brand-border/60">
                       {systemUsers
-                        .filter((u) => userRoleFilter === 'ALL' || u.role === userRoleFilter)
-                        .map((u) => (
-                        <tr key={u.id} className="hover:bg-stone-50 transition-colors">
-                          <td className="p-3">
-                            <p className="font-bold text-brand-dark">{u.fullName}</p>
-                            <p className="text-[11px] text-stone-500">{u.email}</p>
-                          </td>
-                          <td className="p-3">
-                            <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-brand-cream text-brand-green border border-brand-border">
-                              {u.roleLabel || u.role}
-                            </span>
-                          </td>
-                          <td className="p-3 text-stone-600 font-medium">{u.plotsRented}</td>
-                          <td className="p-3">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
-                              u.status === 'ACTIVE'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : u.status === 'INACTIVE'
-                                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                : 'bg-rose-50 text-rose-700 border-rose-200'
-                            }`}>
-                              <span className={`w-2 h-2 rounded-full ${
-                                u.status === 'ACTIVE'
-                                  ? 'bg-emerald-500 animate-pulse'
-                                  : u.status === 'INACTIVE'
-                                  ? 'bg-amber-500'
-                                  : 'bg-rose-500'
-                              }`} />
-                              {u.status}
-                            </span>
-                          </td>
-                          <td className="p-3 text-right">
-                            <button
-                              onClick={() => {
-                                setSelectedUserToEdit(u);
-                                setUserEditStatus(u.status || 'ACTIVE');
-                              }}
-                              className="text-brand-green hover:underline font-bold cursor-pointer"
-                            >
-                              Đổi trạng thái
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                        .filter((u) => {
+                          const matchRole = userRoleFilter === 'ALL' || u.role === userRoleFilter;
+                          const q = userSearchQuery.trim().toLowerCase();
+                          const matchQuery =
+                            !q ||
+                            String(u.fullName || '').toLowerCase().includes(q) ||
+                            String(u.email || '').toLowerCase().includes(q) ||
+                            String(u.role || '').toLowerCase().includes(q);
+                          return matchRole && matchQuery;
+                        })
+                        .map((u) => {
+                          const roleMeta = RBAC_ROLE_CONFIG[u.role] || RBAC_ROLE_CONFIG.CUSTOMER;
+                          const isSelf = Number(u.id) === Number(user?.userId || user?.id);
+                          return (
+                            <tr key={u.id} className="hover:bg-stone-50 transition-colors">
+                              <td className="p-3">
+                                <div className="flex items-center gap-1.5">
+                                  <p className="font-bold text-brand-dark">{u.fullName}</p>
+                                  {isSelf && (
+                                    <span className="px-1.5 py-0.5 rounded bg-brand-cream border border-brand-border text-[9px] font-bold text-brand-green">
+                                      Bạn
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-stone-500">{u.email}</p>
+                              </td>
+                              <td className="p-3 whitespace-nowrap">
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] border ${roleMeta.badgeClass}`}>
+                                  <span>{u.roleLabel || roleMeta.label}</span>
+                                  <span className="opacity-70 font-mono">({u.role})</span>
+                                </span>
+                              </td>
+                              <td className="p-3 text-stone-600 font-medium">{u.plotsRented}</td>
+                              <td className="p-3 whitespace-nowrap">
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                                  u.status === 'ACTIVE'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : u.status === 'INACTIVE'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                                }`}>
+                                  <span className={`w-2 h-2 rounded-full ${
+                                    u.status === 'ACTIVE'
+                                      ? 'bg-emerald-500 animate-pulse'
+                                      : u.status === 'INACTIVE'
+                                      ? 'bg-amber-500'
+                                      : 'bg-rose-500'
+                                  }`} />
+                                  {u.status}
+                                </span>
+                              </td>
+                              <td className="p-3 text-right whitespace-nowrap">
+                                <div className="inline-flex items-center justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedUserForRole(u);
+                                      setUserEditRole(u.role || 'CUSTOMER');
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-brand-cream hover:bg-emerald-100/80 border border-brand-border text-brand-green font-bold text-[11px] cursor-pointer transition-colors"
+                                  >
+                                    Phân quyền
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedUserToEdit(u);
+                                      setUserEditStatus(u.status || 'ACTIVE');
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-[11px] cursor-pointer transition-colors"
+                                  >
+                                    Đổi trạng thái
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>
@@ -3569,7 +3790,8 @@ export default function AdminDashboard() {
                       { id: 'LOGIN', label: 'Đăng nhập' },
                       { id: 'REGISTER', label: 'Đăng ký' },
                       { id: 'PASSWORD_RESET', label: 'Mật khẩu' },
-                      { id: 'CHANGE_USER_STATUS', label: 'Trạng thái User' }
+                      { id: 'CHANGE_USER_STATUS', label: 'Trạng thái User' },
+                      { id: 'CHANGE_USER_ROLE', label: 'Phân quyền RBAC' }
                     ].map((f) => (
                       <button
                         key={f.id}
@@ -3614,7 +3836,10 @@ export default function AdminDashboard() {
                     <tbody className="divide-y divide-brand-border/60">
                       {auditLogs
                         .filter((log) => {
-                          const matchAction = auditFilterAction === 'ALL' || log.action === auditFilterAction;
+                          const matchAction =
+                            auditFilterAction === 'ALL' ||
+                            log.action === auditFilterAction ||
+                            (auditFilterAction === 'CHANGE_USER_ROLE' && log.action === 'UPDATE_ROLE');
                           const q = auditSearchQuery.trim().toLowerCase();
                           const matchQuery =
                             !q ||
@@ -3634,6 +3859,8 @@ export default function AdminDashboard() {
                               ? 'bg-amber-50 text-amber-800 border-amber-200'
                               : log.action === 'CHANGE_USER_STATUS'
                               ? 'bg-purple-50 text-purple-800 border-purple-200'
+                              : (log.action === 'CHANGE_USER_ROLE' || log.action === 'UPDATE_ROLE')
+                              ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
                               : 'bg-stone-100 text-stone-700 border-stone-200';
 
                           return (
@@ -4092,6 +4319,118 @@ export default function AdminDashboard() {
             </div>
           </form>
         )}
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* MODAL 7: PHÂN QUYỀN VAI TRÒ NGƯỜI DÙNG (UC21 RBAC)                        */}
+      {/* ========================================================================= */}
+      <Modal
+        isOpen={Boolean(selectedUserForRole)}
+        onClose={() => setSelectedUserForRole(null)}
+        title="Phân Quyền Tài Khoản (RBAC)"
+        subtitle={selectedUserForRole?.fullName}
+      >
+        {selectedUserForRole && (() => {
+          const currentRoleMeta = RBAC_ROLE_CONFIG[selectedUserForRole.role] || RBAC_ROLE_CONFIG.CUSTOMER;
+          const otherActiveAdmins = systemUsers.filter(
+            (u) => u.role === 'ADMIN' && u.status === 'ACTIVE' && Number(u.id) !== Number(selectedUserForRole.id)
+          ).length;
+          const isLastActiveAdmin = selectedUserForRole.role === 'ADMIN' && otherActiveAdmins <= 0;
+          const isSelf = Number(selectedUserForRole.id) === Number(user?.userId || user?.id);
+
+          return (
+            <form onSubmit={handleUpdateUserRole} className="space-y-4 text-xs text-left">
+              <div className="p-3.5 rounded-xl bg-brand-cream/60 border border-brand-border space-y-1">
+                <p><strong>Họ và tên:</strong> {selectedUserForRole.fullName}</p>
+                <p><strong>Email:</strong> {selectedUserForRole.email}</p>
+                <p className="flex items-center gap-2">
+                  <strong>Vai trò hiện tại:</strong>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${currentRoleMeta.badgeClass}`}>
+                    {currentRoleMeta.label} ({selectedUserForRole.role})
+                  </span>
+                </p>
+              </div>
+
+              {isLastActiveAdmin && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-medium">
+                  Đây là <strong>Quản Trị Viên đang hoạt động duy nhất</strong> trong hệ thống. Không thể chuyển sang vai trò khác.
+                </div>
+              )}
+
+              {isSelf && !isLastActiveAdmin && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-medium">
+                  Lưu ý: Bạn đang thay đổi vai trò của <strong>chính tài khoản đang đăng nhập</strong>. Nếu chuyển khỏi ADMIN, phiên hiện tại sẽ tự động chuyển về dashboard của vai trò mới.
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="block font-bold text-stone-800">
+                  Chọn vai trò phân quyền (Role):
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {RBAC_ROLE_ORDER.map((roleKey) => {
+                    const meta = RBAC_ROLE_CONFIG[roleKey];
+                    const selected = userEditRole === roleKey;
+                    const disabledOption = isLastActiveAdmin && roleKey !== 'ADMIN';
+                    return (
+                      <label
+                        key={roleKey}
+                        className={`block p-3 rounded-xl border transition-all ${
+                          disabledOption
+                            ? 'opacity-50 cursor-not-allowed bg-stone-50 border-stone-200'
+                            : selected
+                            ? `${meta.activeRing} cursor-pointer`
+                            : 'border-stone-200 hover:border-brand-border bg-white cursor-pointer'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name="rbacRole"
+                              value={roleKey}
+                              checked={selected}
+                              disabled={disabledOption}
+                              onChange={(e) => setUserEditRole(e.target.value)}
+                              className="accent-brand-green"
+                            />
+                            <span className="font-bold text-brand-dark">{meta.label}</span>
+                          </div>
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${meta.badgeClass}`}>
+                            {roleKey}
+                          </span>
+                        </div>
+                        <ul className="space-y-0.5 text-[10px] text-stone-600 pl-5">
+                          {meta.permissions.map((perm) => (
+                            <li key={perm}>• {perm}</li>
+                          ))}
+                        </ul>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-stone-500">
+                  Mọi thay đổi phân quyền sẽ được lưu vào PostgreSQL (`users.role_id`) và ghi vết vào Nhật Ký Hệ Thống (Audit Log).
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setSelectedUserForRole(null)}>
+                  Hủy
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={isUpdatingRole || userEditRole === selectedUserForRole.role || (isLastActiveAdmin && userEditRole !== 'ADMIN')}
+                  className="font-bold bg-brand-green hover:bg-[#203c2c] text-white"
+                >
+                  {isUpdatingRole ? 'Đang lưu phân quyền...' : 'Lưu Phân Quyền'}
+                </Button>
+              </div>
+            </form>
+          );
+        })()}
       </Modal>
 
       <div className={`transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>

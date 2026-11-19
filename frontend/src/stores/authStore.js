@@ -44,11 +44,52 @@ export const DEMO_ACCOUNTS = [
   }
 ];
 
-const ROLE_TITLES = {
+export const ROLE_TITLES = {
   CUSTOMER: 'Khách hàng thuê đất',
   EXPERT: 'Chuyên gia nông nghiệp (CGNN)',
   STAFF: 'Chuyên viên lao động hiện trường (CVLĐ)',
   ADMIN: 'Quản trị viên hệ thống (Admin)'
+};
+
+const readSyncOverride = (storageKey, email, userId) => {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const sameEmail = parsed.email && String(parsed.email).toLowerCase() === String(email || '').trim().toLowerCase();
+    const sameId = parsed.userId != null && userId != null && Number(parsed.userId) === Number(userId);
+    return (sameEmail || sameId) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const attemptDemoFallbackLogin = (email, set) => {
+  const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
+  if (!demoAcc) return null;
+
+  const statusSync = readSyncOverride('farmely_user_status_sync', email, demoAcc.userId || demoAcc.id);
+  const roleSync = readSyncOverride('farmely_user_role_sync', email, demoAcc.userId || demoAcc.id);
+  const syncStatus = statusSync?.status || null;
+  const syncRole = roleSync?.role || null;
+
+  if (syncStatus === 'BLOCKED' || syncStatus === 'INACTIVE') {
+    set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+    return {
+      success: false,
+      message: `Tài khoản của bạn đã bị ${syncStatus === 'BLOCKED' ? 'khóa (BLOCKED)' : 'vô hiệu hóa (INACTIVE)'} bởi Ban Quản Trị Farmely.`
+    };
+  }
+
+  const fallbackToken = 'demo-token-' + demoAcc.id;
+  const normalized = normalizeUser({
+    ...demoAcc,
+    role: syncRole || demoAcc.role,
+    status: syncStatus || demoAcc.status || 'ACTIVE'
+  }, fallbackToken);
+  persistAuth({ token: fallbackToken, user: normalized });
+  set({ user: normalized, token: fallbackToken, isAuthenticated: true, isLoading: false });
+  return { success: true, user: normalized };
 };
 
 const normalizeUser = (user, token) => {
@@ -175,65 +216,14 @@ export const useAuthStore = create((set, get) => ({
       }
 
       // Fallback cho tài khoản demo kiểm thử nếu mật khẩu DB không khớp
-      const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
-      if (demoAcc) {
-        // Kiểm tra trạng thái đồng bộ nếu tài khoản demo này vừa bị Admin khóa
-        let syncStatus = null;
-        try {
-          const syncRaw = localStorage.getItem('farmely_user_status_sync');
-          if (syncRaw) {
-            const parsed = JSON.parse(syncRaw);
-            if (parsed.email === email.trim() || Number(parsed.userId) === Number(demoAcc.userId || demoAcc.id)) {
-              syncStatus = parsed.status;
-            }
-          }
-        } catch (_) {}
-
-        if (syncStatus === 'BLOCKED' || syncStatus === 'INACTIVE') {
-          set({ user: null, token: null, isAuthenticated: false, isLoading: false });
-          return {
-            success: false,
-            message: `Tài khoản của bạn đã bị ${syncStatus === 'BLOCKED' ? 'khóa (BLOCKED)' : 'vô hiệu hóa (INACTIVE)'} bởi Ban Quản Trị Farmely.`
-          };
-        }
-
-        const fallbackToken = 'demo-token-' + demoAcc.id;
-        const normalized = normalizeUser({ ...demoAcc, status: syncStatus || demoAcc.status || 'ACTIVE' }, fallbackToken);
-        persistAuth({ token: fallbackToken, user: normalized });
-        set({ user: normalized, token: fallbackToken, isAuthenticated: true, isLoading: false });
-        return { success: true, user: normalized };
-      }
+      const demoResult = attemptDemoFallbackLogin(email, set);
+      if (demoResult) return demoResult;
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
       return { success: false, message: resData?.message || 'Email hoặc mật khẩu không chính xác.' };
     } catch (error) {
       // Fallback cho tài khoản demo khi Identity Service offline
-      const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
-      if (demoAcc) {
-        let syncStatus = null;
-        try {
-          const syncRaw = localStorage.getItem('farmely_user_status_sync');
-          if (syncRaw) {
-            const parsed = JSON.parse(syncRaw);
-            if (parsed.email === email.trim() || Number(parsed.userId) === Number(demoAcc.userId || demoAcc.id)) {
-              syncStatus = parsed.status;
-            }
-          }
-        } catch (_) {}
-
-        if (syncStatus === 'BLOCKED' || syncStatus === 'INACTIVE') {
-          set({ user: null, token: null, isAuthenticated: false, isLoading: false });
-          return {
-            success: false,
-            message: `Tài khoản của bạn đã bị ${syncStatus === 'BLOCKED' ? 'khóa (BLOCKED)' : 'vô hiệu hóa (INACTIVE)'} bởi Ban Quản Trị Farmely.`
-          };
-        }
-
-        const fallbackToken = 'demo-token-' + demoAcc.id;
-        const normalized = normalizeUser({ ...demoAcc, status: syncStatus || demoAcc.status || 'ACTIVE' }, fallbackToken);
-        persistAuth({ token: fallbackToken, user: normalized });
-        set({ user: normalized, token: fallbackToken, isAuthenticated: true, isLoading: false });
-        return { success: true, user: normalized };
-      }
+      const demoResult = attemptDemoFallbackLogin(email, set);
+      if (demoResult) return demoResult;
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
       return { success: false, message: error.message || 'Không thể kết nối đến máy chủ xác thực.' };
     }

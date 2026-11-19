@@ -5,6 +5,8 @@ import {
   markAsRead,
   markAllAsReadForUser,
   notifyExpertsOfNewPlot,
+  notifyAdminsOfSupportTicket,
+  notifyCustomerOfSupportReply,
   getStoredNotifications,
   saveStoredNotifications
 } from './notificationService';
@@ -115,6 +117,53 @@ describe('Notification Service & Scenarios', () => {
     expect(expertNotifs[0].title).toContain('P-18');
     expect(expertNotifs[0].title).toContain('cần gán giống cây trồng');
     expect(expertNotifs[0].link).toBe('/expert/dashboard?tab=compatibility&plot=P-18&plotId=25');
+    expect(getNotificationsForUser(adminUser)).toHaveLength(0);
+  });
+
+  it('Scenario 5: Customer reports support/issue -> Admin receives notification linking to support ticket', async () => {
+    const customerUser = { userId: 1, fullName: 'Lô Thái Quyền', role: 'CUSTOMER' };
+    const adminUser = { userId: 11, fullName: 'Ban Quản Trị', role: 'ADMIN' };
+    const secondAdmin = { userId: 4, fullName: 'Admin 2', role: 'ADMIN' };
+
+    await notifyAdminsOfSupportTicket(
+      {
+        id: 33,
+        customerId: 1,
+        title: 'Hỗ trợ về canh tác & theo dõi',
+        description: 'Hệ thống tưới ở thửa A1 bị rò rỉ nước.',
+        adminNotifications: [{ notificationId: 950, userId: 11 }]
+      },
+      customerUser
+    );
+
+    const adminNotifs = getNotificationsForUser(adminUser);
+    expect(adminNotifs).toHaveLength(1);
+    expect(adminNotifs[0].title).toContain('#33');
+    expect(adminNotifs[0].content).toContain('Lô Thái Quyền');
+    expect(adminNotifs[0].link).toBe('/admin/dashboard?tab=support&ticket=33');
+    expect(getNotificationsForUser(customerUser)).toHaveLength(0);
+    expect(getNotificationsForUser(secondAdmin)).toHaveLength(0);
+  });
+
+  it('Scenario 6: Admin replies to Customer support ticket -> only target Customer receives notification', async () => {
+    const customerUser = { userId: 1, role: 'CUSTOMER' };
+    const otherCustomer = { userId: 2, role: 'CUSTOMER' };
+    const adminUser = { userId: 11, role: 'ADMIN' };
+
+    await notifyCustomerOfSupportReply({
+      ticketId: 33,
+      ticketTitle: 'Hỗ trợ về canh tác & theo dõi',
+      customerId: 1,
+      replyBody: 'Kỹ thuật viên đã khóa van phụ và sửa ống tưới lúc 14:00.',
+      customerNotification: { notificationId: 951, userId: 1 }
+    });
+
+    const customerNotifs = getNotificationsForUser(customerUser);
+    expect(customerNotifs).toHaveLength(1);
+    expect(customerNotifs[0].title).toContain('#33');
+    expect(customerNotifs[0].content).toContain('sửa ống tưới');
+    expect(customerNotifs[0].link).toBe('/customer/support/33');
+    expect(getNotificationsForUser(otherCustomer)).toHaveLength(0);
     expect(getNotificationsForUser(adminUser)).toHaveLength(0);
   });
 });

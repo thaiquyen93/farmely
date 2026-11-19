@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
-import { useAuthStore } from './stores/authStore';
+import { useAuthStore, ROLE_TITLES } from './stores/authStore';
 
 // Public Pages
 import Home from './pages/public/Home';
@@ -120,20 +120,34 @@ export function AdminSupportRedirect() {
 }
 
 export default function App() {
-  // Lắng nghe tín hiệu đồng bộ trạng thái tài khoản từ Ban Quản Trị (Real-time sync across tabs/roles)
+  // Lắng nghe tín hiệu đồng bộ trạng thái & vai trò tài khoản từ Ban Quản Trị (Real-time sync across tabs/roles)
   useEffect(() => {
-    const handleStatusSync = (payload) => {
-      if (!payload || !payload.userId) return;
+    const applyUserSync = (payload) => {
+      if (!payload || (!payload.userId && !payload.email)) return;
       const currentUser = useAuthStore.getState().user;
-      if (currentUser && (Number(currentUser.userId || currentUser.id) === Number(payload.userId) || currentUser.email === payload.email)) {
-        const newStatus = payload.status;
-        const updated = { ...currentUser, status: newStatus };
+      const matchesId = payload.userId != null && Number(currentUser?.userId || currentUser?.id) === Number(payload.userId);
+      const matchesEmail = payload.email && currentUser?.email && String(currentUser.email).toLowerCase() === String(payload.email).toLowerCase();
+      if (currentUser && (matchesId || matchesEmail)) {
+        const nextRole = payload.role
+          ? ((payload.role === 'FIELD_WORKER' || payload.role === 'WORKER') ? 'STAFF' : payload.role)
+          : currentUser.role;
+        const updated = {
+          ...currentUser,
+          ...(payload.status ? { status: payload.status } : {}),
+          ...(payload.role ? { role: nextRole, roleTitle: ROLE_TITLES[nextRole] || nextRole } : {})
+        };
         useAuthStore.setState({ user: updated });
         try {
-          const auth = JSON.parse(sessionStorage.getItem('farmely_auth') || localStorage.getItem('farmely_auth') || '{}');
-          auth.user = updated;
-          sessionStorage.setItem('farmely_auth', JSON.stringify(auth));
-          localStorage.setItem('farmely_auth', JSON.stringify(auth));
+          if (typeof sessionStorage !== 'undefined') {
+            const sessAuth = JSON.parse(sessionStorage.getItem('farmely_auth') || '{}');
+            sessAuth.user = updated;
+            sessionStorage.setItem('farmely_auth', JSON.stringify(sessAuth));
+            sessionStorage.setItem('farmely_user', JSON.stringify(updated));
+          }
+          const localAuth = JSON.parse(localStorage.getItem('farmely_auth') || '{}');
+          localAuth.user = updated;
+          localStorage.setItem('farmely_auth', JSON.stringify(localAuth));
+          localStorage.setItem('farmely_user', JSON.stringify(updated));
         } catch (_) {}
       }
     };
@@ -142,31 +156,33 @@ export default function App() {
     try {
       bc = new BroadcastChannel('farmely_system_sync');
       bc.onmessage = (e) => {
-        if (e.data?.type === 'USER_STATUS_CHANGED') {
-          handleStatusSync(e.data);
+        if (e.data?.type === 'USER_STATUS_CHANGED' || e.data?.type === 'USER_ROLE_CHANGED') {
+          applyUserSync(e.data);
         }
       };
     } catch (_) {}
 
     const onStorage = (e) => {
-      if (e.key === 'farmely_user_status_sync' && e.newValue) {
+      if ((e.key === 'farmely_user_status_sync' || e.key === 'farmely_user_role_sync') && e.newValue) {
         try {
           const data = JSON.parse(e.newValue);
-          handleStatusSync(data);
+          applyUserSync(data);
         } catch (_) {}
       }
     };
     const onCustomEvent = (e) => {
-      handleStatusSync(e.detail);
+      applyUserSync(e.detail);
     };
 
     window.addEventListener('storage', onStorage);
     window.addEventListener('farmely_user_status_changed', onCustomEvent);
+    window.addEventListener('farmely_user_role_changed', onCustomEvent);
 
     return () => {
       if (bc) bc.close();
       window.removeEventListener('storage', onStorage);
       window.removeEventListener('farmely_user_status_changed', onCustomEvent);
+      window.removeEventListener('farmely_user_role_changed', onCustomEvent);
     };
   }, []);
   return (

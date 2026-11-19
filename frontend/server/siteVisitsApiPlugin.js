@@ -626,10 +626,61 @@ CREATE TABLE IF NOT EXISTS support_attachments (
   }
 }
 
+function formatNotifSnippet(text, maxLength = 120) {
+  const clean = String(text || '').trim();
+  if (!clean) return '';
+  return clean.length > maxLength ? `${clean.slice(0, maxLength - 3)}...` : clean;
+}
+
+async function notifyActiveRoleUsers(roleName, { title, content, link = null, type = 'GENERAL' }) {
+  const notifRes = await getPgPool().query(
+    `INSERT INTO notifications (user_id, title, content, is_read, created_at)
+     SELECT u.user_id, $1, $2, false, NOW()
+     FROM users u
+     JOIN roles r ON u.role_id = r.role_id
+     WHERE UPPER(r.role_name::text) = UPPER($3)
+       AND COALESCE(u.status::text, 'ACTIVE') = 'ACTIVE'
+     RETURNING notification_id AS "notificationId", user_id AS "userId", title, content, is_read AS "isRead", created_at AS "createdAt"`,
+    [title, content, roleName]
+  );
+  return (notifRes.rows || []).map((row) => ({
+    ...row,
+    id: `DB-NOTIF-${row.notificationId}`,
+    link,
+    type
+  }));
+}
+
+async function notifySingleUser(userId, { title, content, link = null, type = 'GENERAL' }) {
+  const uid = parseInt(userId, 10);
+  if (!uid) return null;
+  const notifRes = await getPgPool().query(
+    `INSERT INTO notifications (user_id, title, content, is_read, created_at)
+     VALUES ($1, $2, $3, false, NOW())
+     RETURNING notification_id AS "notificationId", user_id AS "userId", title, content, is_read AS "isRead", created_at AS "createdAt"`,
+    [uid, title, content]
+  );
+  const row = notifRes.rows[0];
+  return row ? { ...row, id: `DB-NOTIF-${row.notificationId}`, link, type } : null;
+}
+
+let processTemplateColumnsEnsured = false;
+async function ensureProcessTemplateColumns() {
+  if (processTemplateColumnsEnsured) return;
+  await runPostgreSql(`
+ALTER TABLE process_templates ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+ALTER TABLE process_templates ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE process_templates ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE';
+ALTER TABLE template_steps ADD COLUMN IF NOT EXISTS step_order INT DEFAULT 1;
+`);
+  processTemplateColumnsEnsured = true;
+}
+
 let rentalLeaseColumnsEnsured = false;
 async function ensureRentalLeaseColumns() {
   if (rentalLeaseColumnsEnsured) return;
   try {
+    await ensureProcessTemplateColumns();
     await runPostgreSql(`
 ALTER TABLE rentals ADD COLUMN IF NOT EXISTS cultivation_mode VARCHAR(20);
 ALTER TABLE rentals ADD COLUMN IF NOT EXISTS term_months INTEGER;
@@ -639,7 +690,6 @@ ALTER TABLE lands ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT FALSE;
 ALTER TABLE plots ADD COLUMN IF NOT EXISTS care_price_per_month NUMERIC(12, 2) DEFAULT 800000;
 UPDATE plots SET is_published = TRUE WHERE status IN ('AVAIL', 'RENT');
 UPDATE lands SET is_published = TRUE WHERE land_id IN (1, 2);
-ALTER TABLE template_steps ADD COLUMN IF NOT EXISTS step_order INT DEFAULT 1;
 ALTER TABLE care_tasks ADD COLUMN IF NOT EXISTS title VARCHAR(255);
 ALTER TABLE care_tasks ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE care_tasks ADD COLUMN IF NOT EXISTS step_order INT DEFAULT 1;
@@ -829,8 +879,7 @@ const PSQL_CANDIDATES = [
   rootEnv.PSQL_PATH,
   'C:/Program Files/PostgreSQL/18/bin/psql.exe',
   'C:/Program Files/PostgreSQL/17/bin/psql.exe',
-  'C:/Program Files/PostgreSQL/16/bin/psql.exe',
-  'D:/S5/PostgreSQL/bin/psql.exe'
+  'C:/Program Files/PostgreSQL/16/bin/psql.exe'
 ].filter(Boolean);
 
 const PSQL_PATH = PSQL_CANDIDATES.find(p => {
@@ -841,11 +890,11 @@ function getPgConfig() {
   const rawPort = process.env.PGPORT || process.env.DB_PORT || rootEnv.DB_PORT || '5432';
   const port = rawPort || '5432';
   return {
-    host: '127.0.0.1',
+    host: process.env.PGHOST || process.env.DB_HOST || rootEnv.DB_HOST || '127.0.0.1',
     port: port,
     database: process.env.PGDATABASE || process.env.DB_NAME || rootEnv.DB_NAME || 'farmely',
     user: process.env.PGUSER || process.env.DB_USER || rootEnv.DB_USER || 'postgres',
-    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || process.env.DB_PASS || rootEnv.DB_PASSWORD || '@Bin054206'
+    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || process.env.DB_PASS || rootEnv.DB_PASSWORD || 'postgres'
   };
 }
 
@@ -960,7 +1009,7 @@ async function runPostgreSql(sqlQuery, params = []) {
     }
     const base = getPgConfig();
     const candidatePorts = Array.from(new Set(['5432', '5433', base.port].filter(Boolean)));
-    const candidatePasses = Array.from(new Set(['@Bin054206', base.password, '12345', 'postgres', ''].filter(p => p !== undefined)));
+    const candidatePasses = Array.from(new Set([base.password, 'postgres', '12345', ''].filter(p => p !== undefined)));
 
     let lastErr = null;
     for (const port of candidatePorts) {
@@ -1478,19 +1527,46 @@ JOIN plots p ON ins.plot_id = p.plot_id;
               if (!replyText) throw new Error('Nội dung phản hồi không được để trống');
               if (actor.role !== 'ADMIN') throw new Error('Chỉ Ban Quản Trị / CSKH mới có quyền gửi phản hồi');
 
+              const ticketRes = await getPgPool().query(
+                `SELECT id, customer_id AS "customerId", title, status FROM support_tickets WHERE id = $1`,
+                [ticketId]
+              );
+              const ticketRow = ticketRes.rows[0];
+              if (!ticketRow) throw new Error('Không tìm thấy yêu cầu');
+              if (ticketRow.status === 'CLOSED') throw new Error('Yêu cầu đã đóng');
+
               await getPgPool().query(`
                 INSERT INTO support_events (ticket_id, actor_id, actor_role, type, body, created_at)
                 VALUES ($1, $2, $3, 'REPLY', $4, NOW())
               `, [ticketId, actor.id, actor.role, replyText]);
 
+              let customerNotification = null;
               if (actor.role === 'ADMIN') {
                 await getPgPool().query(`
                   UPDATE support_tickets SET status = 'RESPONDED', updated_at = NOW() WHERE id = $1
                 `, [ticketId]);
-                await getPgPool().query(`
-                  INSERT INTO support_events (ticket_id, actor_id, actor_role, type, from_status, to_status, created_at)
-                  VALUES ($1, $2, 'ADMIN', 'STATUS', 'NEW', 'RESPONDED', NOW())
-                `, [ticketId, actor.id]);
+                if (ticketRow.status !== 'RESPONDED') {
+                  await getPgPool().query(`
+                    INSERT INTO support_events (ticket_id, actor_id, actor_role, type, from_status, to_status, created_at)
+                    VALUES ($1, $2, 'ADMIN', 'STATUS', $3, 'RESPONDED', NOW())
+                  `, [ticketId, actor.id, ticketRow.status || 'NEW']);
+                }
+                if (ticketRow.customerId) {
+                  try {
+                    const preview = formatNotifSnippet(replyText);
+                    const subject = ticketRow.title || `Yêu cầu #${ticketId}`;
+                    customerNotification = await notifySingleUser(ticketRow.customerId, {
+                      title: `💬 Phản hồi yêu cầu hỗ trợ #${ticketId}`,
+                      content: preview
+                        ? `Ban Quản Trị đã phản hồi "${subject}": ${preview}`
+                        : `Ban Quản Trị đã phản hồi "${subject}".`,
+                      link: `/customer/support/${ticketId}`,
+                      type: 'SUPPORT_REPLY'
+                    });
+                  } catch (notifErr) {
+                    console.warn('[Support Reply Customer Notification] Warning:', notifErr.message);
+                  }
+                }
               } else {
                 await getPgPool().query(`
                   UPDATE support_tickets SET updated_at = NOW() WHERE id = $1
@@ -1498,7 +1574,7 @@ JOIN plots p ON ins.plot_id = p.plot_id;
               }
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ success: true }));
+              res.end(JSON.stringify({ success: true, customerNotification }));
             } catch (err) {
               res.statusCode = 400;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -1656,9 +1732,27 @@ JOIN plots p ON ins.plot_id = p.plot_id;
                 VALUES ($1, $2, 'CUSTOMER', 'CREATED', $3, 'NEW', NOW())
               `, [createdTicket.id, actor.id, description]);
 
+              let customerName = `Khách #${actor.id}`;
+              let adminNotifications = [];
+              try {
+                const custRes = await getPgPool().query(`SELECT full_name FROM users WHERE user_id = $1`, [actor.id]);
+                if (custRes.rows[0]?.full_name) customerName = custRes.rows[0].full_name;
+                const preview = formatNotifSnippet(description);
+                adminNotifications = await notifyActiveRoleUsers('ADMIN', {
+                  title: `📩 Báo cáo / yêu cầu hỗ trợ mới #${createdTicket.id}`,
+                  content: preview
+                    ? `${customerName} vừa gửi "${title}": ${preview}`
+                    : `${customerName} vừa gửi "${title}".`,
+                  link: `/admin/dashboard?tab=support&ticket=${createdTicket.id}`,
+                  type: 'SUPPORT_TICKET'
+                });
+              } catch (notifErr) {
+                console.warn('[Support Ticket Admin Notification] Warning:', notifErr.message);
+              }
+
               res.statusCode = 201;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify(createdTicket));
+              res.end(JSON.stringify({ ...createdTicket, customerName, adminNotifications }));
             } catch (err) {
               res.statusCode = 400;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -1880,6 +1974,7 @@ SELECT json_build_object(
           WHEN al.action = 'APPROVE_CANCELLATION' THEN 'Duyệt hoàn tiền hủy hợp đồng #' || COALESCE(al.entity_id, '') || ' (' || COALESCE(ROUND(((al.details->>'refundRate')::numeric * 100), 0)::text, '0') || '%)'
           WHEN al.action = 'CANCEL_REQUEST' THEN 'Yêu cầu hủy hợp đồng #' || COALESCE(al.entity_id, '') || ' - Lý do: ' || COALESCE(al.details->>'reason', 'Khách bận')
           WHEN al.action = 'CHANGE_USER_STATUS' THEN 'Đổi trạng thái người dùng #' || COALESCE(al.entity_id, '') || ' thành ' || COALESCE(al.details->>'status', 'ACTIVE')
+          WHEN al.action IN ('CHANGE_USER_ROLE', 'UPDATE_ROLE') THEN 'Phân quyền người dùng #' || COALESCE(al.entity_id, '') || ' từ ' || COALESCE(al.details->>'previousRole', '—') || ' sang ' || COALESCE(al.details->>'role', 'CUSTOMER')
           ELSE 'Thao tác ' || al.action || ' trên ' || al.entity_name
         END AS description,
         COALESCE(al.ip_address, '127.0.0.1') AS "ipAddress",
@@ -4108,6 +4203,208 @@ VALUES (
           return;
         }
 
+        // 7c. PATCH /api/users/:id/role (Phân quyền người dùng ADMIN, EXPERT, STAFF, CUSTOMER trong PostgreSQL & Audit Log)
+        const userRoleMatch = url.match(/^\/api\/(?:v1\/)?users\/(\d+)\/role(?:\?.*)?$/);
+        if ((req.method === 'PATCH' || req.method === 'PUT') && userRoleMatch) {
+          try {
+            const targetUserId = parseInt(userRoleMatch[1], 10);
+            const urlObj = new URL(req.url, 'http://localhost:3000');
+            let requestedRole = (urlObj.searchParams.get('role') || '').trim().toUpperCase();
+            let actorId = null;
+
+            let body = '';
+            await new Promise((resolve) => {
+              req.on('data', chunk => { body += chunk; });
+              req.on('end', resolve);
+              setTimeout(resolve, 300);
+            });
+            if (body) {
+              try {
+                const payload = JSON.parse(body);
+                if (!requestedRole && payload.role) {
+                  requestedRole = String(payload.role).trim().toUpperCase();
+                }
+                if (payload.actorId) {
+                  actorId = parseInt(payload.actorId, 10) || null;
+                }
+              } catch (_) {}
+            }
+
+            if (!actorId) {
+              const authHeader = req.headers['authorization'] || '';
+              const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+              if (token.includes('farmely-jwt-token-')) {
+                const parts = token.split('-');
+                actorId = parseInt(parts[3], 10) || null;
+              }
+            }
+
+            const roleMap = {
+              ADMIN: { publicRole: 'ADMIN', dbNames: ['ADMIN'] },
+              EXPERT: { publicRole: 'EXPERT', dbNames: ['EXPERT'] },
+              STAFF: { publicRole: 'STAFF', dbNames: ['FIELD_WORKER', 'STAFF'] },
+              FIELD_WORKER: { publicRole: 'STAFF', dbNames: ['FIELD_WORKER', 'STAFF'] },
+              CUSTOMER: { publicRole: 'CUSTOMER', dbNames: ['CUSTOMER'] }
+            };
+
+            const resolvedRole = roleMap[requestedRole];
+            if (!resolvedRole) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: false,
+                message: 'Vai trò không hợp lệ. Chỉ chấp nhận ADMIN, EXPERT, STAFF (FIELD_WORKER), CUSTOMER.'
+              }));
+              return;
+            }
+
+            const existingSql = `
+SELECT json_build_object(
+  'userId', u.user_id,
+  'email', u.email,
+  'fullName', u.full_name,
+  'status', u.status,
+  'roleName', r.role_name
+)
+FROM users u
+JOIN roles r ON u.role_id = r.role_id
+WHERE u.user_id = $1
+LIMIT 1;
+`;
+            const existingRaw = await runPostgreSql(existingSql, [targetUserId]);
+            let existingUser = null;
+            if (existingRaw && existingRaw.trim()) {
+              try {
+                existingUser = JSON.parse(existingRaw.trim().split('\r\n')[0]);
+              } catch (_) {}
+            }
+            if (!existingUser) {
+              res.statusCode = 404;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: `Không tìm thấy người dùng #${targetUserId}.` }));
+              return;
+            }
+
+            const previousPublicRole =
+              existingUser.roleName === 'FIELD_WORKER' || existingUser.roleName === 'STAFF'
+                ? 'STAFF'
+                : existingUser.roleName;
+
+            if (existingUser.roleName === 'ADMIN' && resolvedRole.publicRole !== 'ADMIN') {
+              const adminCountRaw = await runPostgreSql(`
+SELECT COUNT(*)::int FROM users u
+JOIN roles r ON u.role_id = r.role_id
+WHERE r.role_name = 'ADMIN' AND u.status = 'ACTIVE' AND u.user_id <> $1;
+`, [targetUserId]);
+              const remainingAdmins = parseInt((adminCountRaw || '').trim().split(/\s+/)[0], 10) || 0;
+              if (remainingAdmins <= 0) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({
+                  success: false,
+                  message: 'Không thể hạ quyền Quản Trị Viên hoạt động cuối cùng của hệ thống.'
+                }));
+                return;
+              }
+            }
+
+            const targetRoleRaw = await runPostgreSql(`
+SELECT json_build_object('roleId', role_id, 'roleName', role_name)
+FROM roles
+WHERE UPPER(role_name) = ANY($1::text[])
+ORDER BY CASE WHEN UPPER(role_name) = $2 THEN 0 ELSE 1 END
+LIMIT 1;
+`, [resolvedRole.dbNames, resolvedRole.dbNames[0]]);
+            let targetRoleRow = null;
+            if (targetRoleRaw && targetRoleRaw.trim()) {
+              try {
+                targetRoleRow = JSON.parse(targetRoleRaw.trim().split('\r\n')[0]);
+              } catch (_) {}
+            }
+            if (!targetRoleRow) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: `Không tìm thấy vai trò ${requestedRole} trong bảng roles.` }));
+              return;
+            }
+
+            const updateRoleSql = `
+WITH updated_row AS (
+  UPDATE users
+  SET role_id = $1, updated_at = NOW()
+  WHERE user_id = $2
+  RETURNING user_id, email, full_name, role_id, status
+)
+SELECT json_build_object(
+  'userId', u.user_id,
+  'id', u.user_id,
+  'email', u.email,
+  'fullName', u.full_name,
+  'roleId', u.role_id,
+  'role', $3::text,
+  'dbRole', $4::text,
+  'status', u.status
+) FROM updated_row u;
+`;
+            const pgResult = await runPostgreSql(updateRoleSql, [
+              Number(targetRoleRow.roleId),
+              targetUserId,
+              resolvedRole.publicRole,
+              targetRoleRow.roleName
+            ]);
+            let updatedUser = null;
+            if (pgResult && pgResult.trim()) {
+              try {
+                updatedUser = JSON.parse(pgResult.trim().split('\r\n')[0]);
+              } catch (_) {}
+            }
+
+            try {
+              const auditDetails = {
+                email: existingUser.email || '',
+                previousRole: previousPublicRole || '',
+                role: resolvedRole.publicRole,
+                note: `Quản trị viên phân quyền tài khoản #${targetUserId} từ ${previousPublicRole || '—'} sang ${resolvedRole.publicRole}`
+              };
+              await runPostgreSql(`
+INSERT INTO audit_logs (user_id, action, entity_name, entity_id, details, created_at)
+VALUES (
+  COALESCE($1::int, (SELECT u.user_id FROM users u JOIN roles r ON u.role_id = r.role_id WHERE r.role_name = 'ADMIN' ORDER BY u.user_id ASC LIMIT 1)),
+  'CHANGE_USER_ROLE',
+  'USER',
+  $2::text,
+  $3::jsonb,
+  NOW()
+);
+`, [actorId ? Number(actorId) : null, String(targetUserId), JSON.stringify(auditDetails)]);
+            } catch (auditErr) {
+              console.warn('Audit log user role change error:', auditErr.message);
+            }
+
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              message: `Đã cập nhật vai trò tài khoản thành ${resolvedRole.publicRole}`,
+              data: updatedUser || {
+                userId: targetUserId,
+                id: targetUserId,
+                email: existingUser.email,
+                fullName: existingUser.fullName,
+                role: resolvedRole.publicRole,
+                roleId: targetRoleRow.roleId,
+                status: existingUser.status
+              }
+            }));
+          } catch (err) {
+            const errMsg = err?.message || err?.errors?.map(e => e.message).join('; ') || String(err);
+            console.error('Error in PATCH /api/users/:id/role:', errMsg, err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: 'Lỗi phân quyền người dùng: ' + errMsg }));
+          }
+          return;
+        }
+
         // 8. GET /api/customer/rented-plots (Load actual rented plots of a customer from PostgreSQL)
         if (req.method === 'GET' && (url.startsWith('/api/customer/rented-plots') || url.startsWith('/api/v1/customer/rented-plots'))) {
           try {
@@ -5963,6 +6260,7 @@ SELECT json_build_object(
           url.startsWith('/api/templates?') || url.startsWith('/api/v1/templates?')
         )) {
           try {
+            await ensureProcessTemplateColumns();
             const sql = `
 SELECT json_build_object(
   'success', true,
@@ -5987,7 +6285,7 @@ SELECT json_build_object(
           (SELECT sum(ts.duration_days)::int FROM template_steps ts WHERE ts.template_id = pt.template_id),
           v.expected_duration
         ) AS "totalDays",
-        'Quy trình kỹ thuật nông nghiệp chuẩn VietGAP được ban hành chính thức cho giống ' || v.variety_name AS description,
+        COALESCE(NULLIF(pt.description, ''), 'Quy trình kỹ thuật nông nghiệp chuẩn VietGAP được ban hành chính thức cho giống ' || v.variety_name) AS description,
         COALESCE(u.full_name, 'Chuyên gia Nông nghiệp Farmely') AS "authorName",
         COALESCE(u.full_name, 'Chuyên gia Nông nghiệp Farmely') AS "author",
         TO_CHAR(pt.created_at, 'YYYY-MM-DD') AS "createdAt",
@@ -6062,6 +6360,7 @@ SELECT json_build_object(
           const rawId = url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)$/)[1];
           const templateId = parseInt(rawId.replace(/\D/g, ''), 10) || 1;
           try {
+            await ensureProcessTemplateColumns();
             const sql = `
 SELECT json_build_object(
   'success', true,
@@ -6086,7 +6385,7 @@ SELECT json_build_object(
           (SELECT sum(ts.duration_days)::int FROM template_steps ts WHERE ts.template_id = pt.template_id),
           v.expected_duration
         ) AS "totalDays",
-        'Quy trình kỹ thuật nông nghiệp chuẩn VietGAP được ban hành chính thức cho giống ' || v.variety_name AS description,
+        COALESCE(NULLIF(pt.description, ''), 'Quy trình kỹ thuật nông nghiệp chuẩn VietGAP được ban hành chính thức cho giống ' || v.variety_name) AS description,
         COALESCE(u.full_name, 'Chuyên gia Nông nghiệp Farmely') AS "authorName",
         COALESCE(u.full_name, 'Chuyên gia Nông nghiệp Farmely') AS "author",
         TO_CHAR(pt.created_at, 'YYYY-MM-DD') AS "createdAt",
@@ -6165,6 +6464,7 @@ SELECT json_build_object(
           req.on('data', chunk => body += chunk);
           req.on('end', async () => {
             try {
+              await ensureProcessTemplateColumns();
               const payload = JSON.parse(body || '{}');
               const varietyId = parseInt(String(payload.varietyId || 1).replace(/\D/g, ''), 10) || 1;
               const version = (payload.version || 'v1.0').replace(/'/g, "''");
@@ -6263,6 +6563,7 @@ VALUES (
           req.on('data', chunk => body += chunk);
           req.on('end', async () => {
             try {
+              await ensureProcessTemplateColumns();
               const payload = JSON.parse(body || '{}');
               const nextStatus = String(payload.status || 'ACTIVE').trim().toUpperCase();
               if (!templateId) {
@@ -6316,6 +6617,7 @@ VALUES (
           req.on('data', chunk => body += chunk);
           req.on('end', async () => {
             try {
+              await ensureProcessTemplateColumns();
               const payload = JSON.parse(body || '{}');
 
               // Trường hợp gửi danh sách nhiều bước (Bulk Import)
@@ -7896,8 +8198,23 @@ END $$;
               const plotMatch = txt.match(/(?:thửa(?:\s+đất)?(?:\s+mới)?|\()\s*([A-Z]\s*-\s*\d+)/i);
               const plotCode = plotMatch ? plotMatch[1].replace(/\s+/g, '').toUpperCase() : '';
               const issueMatch = txt.match(/#?ISS-(\d+)/i);
+              const ticketMatch = txt.match(/#(\d+)/);
               let link = null;
-              if (issueMatch || /xử lý xong sự cố|sự cố.*hoàn thành/i.test(txt)) {
+              if (/phản hồi yêu cầu hỗ trợ/i.test(txt)) {
+                const ticketId = ticketMatch ? ticketMatch[1] : '';
+                link = ticketId ? `/customer/support/${encodeURIComponent(ticketId)}` : '/customer/support';
+              } else if (/báo cáo\s*\/\s*yêu cầu hỗ trợ mới|yêu cầu hỗ trợ mới/i.test(txt)) {
+                const ticketId = ticketMatch ? ticketMatch[1] : '';
+                link = ticketId
+                  ? `/admin/dashboard?tab=support&ticket=${encodeURIComponent(ticketId)}`
+                  : '/admin/dashboard?tab=support';
+              } else if (/khách hàng báo cáo sự cố mới/i.test(txt)) {
+                link = '/admin/dashboard?tab=dispatch&subtab=expert_issues';
+              } else if (/phản hồi sự cố/i.test(txt)) {
+                link = plotCode
+                  ? `/customer/dashboard?plot=${encodeURIComponent(plotCode)}&tab=diary`
+                  : '/customer/dashboard';
+              } else if (issueMatch || /xử lý xong sự cố|sự cố.*hoàn thành/i.test(txt)) {
                 const issueId = issueMatch ? issueMatch[1] : '';
                 link = `/expert/dashboard?tab=issues${issueId ? `&issueId=${encodeURIComponent(issueId)}` : ''}${plotCode ? `&plot=${encodeURIComponent(plotCode)}` : ''}`;
               } else if (/quy trình.*cần phê duyệt|quy trình canh tác mới/i.test(txt)) {
@@ -8427,6 +8744,28 @@ RETURNING issue_id, rental_id, issue_type, status;
               } else if (result && result.issue_id) {
                 createdIssueId = result.issue_id;
               }
+              try {
+                const reporterRes = await getPgPool().query(
+                  `SELECT u.full_name AS "fullName", UPPER(r.role_name::text) AS "roleName"
+                   FROM users u
+                   JOIN roles r ON u.role_id = r.role_id
+                   WHERE u.user_id = $1`,
+                  [reportedBy]
+                );
+                const reporter = reporterRes.rows[0];
+                if (reporter?.roleName === 'CUSTOMER') {
+                  const preview = formatNotifSnippet(payload.description || 'Báo cáo sự cố từ khách hàng');
+                  const issueTitle = payload.issueType || payload.issue_type || 'Sự cố';
+                  await notifyActiveRoleUsers('ADMIN', {
+                    title: `📩 Khách hàng báo cáo sự cố mới #ISS-${createdIssueId}`,
+                    content: `${reporter.fullName || `Khách #${reportedBy}`} vừa báo cáo "${issueTitle}": ${preview}`,
+                    link: '/admin/dashboard?tab=dispatch&subtab=expert_issues',
+                    type: 'ISSUE_REPORT'
+                  });
+                }
+              } catch (notifErr) {
+                console.warn('[Issue Admin Notification] Warning:', notifErr.message);
+              }
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
@@ -8538,6 +8877,36 @@ END $$;
                   `);
                 } catch (e) {
                   console.error('Error auto-creating task for issue:', e);
+                }
+              }
+
+              const replyText = payload.diagnosis || payload.resolutionNotes || payload.resolution_notes || payload.notes || '';
+              if (String(replyText).trim()) {
+                try {
+                  const custIssueRes = await getPgPool().query(
+                    `SELECT ir.reported_by AS "reportedBy", ir.issue_type AS "issueType", p.plot_code AS "plotCode", UPPER(r.role_name::text) AS "reporterRole"
+                     FROM issue_reports ir
+                     JOIN users u ON ir.reported_by = u.user_id
+                     JOIN roles r ON u.role_id = r.role_id
+                     LEFT JOIN rentals rent ON ir.rental_id = rent.rental_id
+                     LEFT JOIN plots p ON rent.plot_id = p.plot_id
+                     WHERE ir.issue_id = $1`,
+                    [parseInt(issueId, 10)]
+                  );
+                  const issueRow = custIssueRes.rows[0];
+                  if (issueRow && issueRow.reporterRole === 'CUSTOMER' && issueRow.reportedBy) {
+                    const plotSuffix = issueRow.plotCode ? ` (${issueRow.plotCode})` : '';
+                    await notifySingleUser(issueRow.reportedBy, {
+                      title: `💬 Phản hồi sự cố #ISS-${issueId}${plotSuffix}`,
+                      content: `Ban Quản Trị đã phản hồi "${issueRow.issueType || 'Sự cố'}": ${formatNotifSnippet(replyText)}`,
+                      link: issueRow.plotCode
+                        ? `/customer/dashboard?plot=${encodeURIComponent(issueRow.plotCode)}&tab=diary`
+                        : '/customer/dashboard',
+                      type: 'ISSUE_REPLY'
+                    });
+                  }
+                } catch (notifErr) {
+                  console.warn('[Issue Customer Reply Notification] Warning:', notifErr.message);
                 }
               }
 

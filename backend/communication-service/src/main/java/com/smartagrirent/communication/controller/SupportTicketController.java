@@ -58,6 +58,41 @@ public class SupportTicketController {
     }
     private Integer optionalId(Integer id) { return id != null && id > 0 ? id : null; }
     private String visibleStatus(String status) { return "IN_PROGRESS".equals(status) ? "NEW" : status; }
+    private String snippet(String text) {
+        String clean = text == null ? "" : text.trim();
+        return clean.length() > 120 ? clean.substring(0, 117) + "..." : clean;
+    }
+    private void notifyAdminsOfNewTicket(SupportTicket t) {
+        List<Map<String, Object>> names = jdbc.queryForList("select full_name from users where user_id=?", t.customerId);
+        String customerName = (!names.isEmpty() && names.get(0).get("full_name") != null)
+                ? String.valueOf(names.get(0).get("full_name"))
+                : "Khách #" + t.customerId;
+        String idSuffix = t.id != null ? " #" + t.id : "";
+        String preview = snippet(t.description);
+        String title = "📩 Báo cáo / yêu cầu hỗ trợ mới" + idSuffix;
+        String content = preview.isEmpty()
+                ? customerName + " vừa gửi \"" + t.title + "\"."
+                : customerName + " vừa gửi \"" + t.title + "\": " + preview;
+        jdbc.update("""
+                insert into notifications (user_id, title, content, is_read, created_at)
+                select u.user_id, ?, ?, false, now()
+                from users u join roles r on r.role_id = u.role_id
+                where upper(cast(r.role_name as text)) = 'ADMIN'
+                  and coalesce(cast(u.status as text), 'ACTIVE') = 'ACTIVE'
+                """, title, content);
+    }
+    private void notifyCustomerOfReply(SupportTicket t, String replyBody) {
+        if (t.customerId == null) return;
+        String idSuffix = t.id != null ? " #" + t.id : "";
+        String subject = (t.title != null && !t.title.isBlank()) ? t.title : ("Yêu cầu" + idSuffix);
+        String preview = snippet(replyBody);
+        String title = "💬 Phản hồi yêu cầu hỗ trợ" + idSuffix;
+        String content = preview.isEmpty()
+                ? "Ban Quản Trị đã phản hồi \"" + subject + "\"."
+                : "Ban Quản Trị đã phản hồi \"" + subject + "\": " + preview;
+        jdbc.update("insert into notifications (user_id, title, content, is_read, created_at) values (?, ?, ?, false, now())",
+                t.customerId, title, content);
+    }
     public record TicketView(Long id, Integer customerId, String customerName, String customerEmail, String category,
                              String title, String description, String status, Integer plotId, Integer contractId,
                              Integer paymentId, OffsetDateTime createdAt, OffsetDateTime updatedAt) {}
@@ -130,7 +165,9 @@ public class SupportTicketController {
         Integer plot = optionalId(r.plotId()), contract = optionalId(r.contractId()), payment = optionalId(r.paymentId());
         validateRelated(a, plot, contract, payment);
         SupportTicket t = new SupportTicket(); t.customerId = a.id; t.category = r.category(); t.title = TITLES.get(r.category()); t.description = r.description().trim(); t.plotId = plot; t.contractId = contract; t.paymentId = payment;
-        em.persist(t); em.flush(); event(t, a, "CREATED", t.description, null, "NEW"); return t;
+        em.persist(t); em.flush(); event(t, a, "CREATED", t.description, null, "NEW");
+        notifyAdminsOfNewTicket(t);
+        return t;
     }
     @GetMapping("/{id}")
     public Map<String,Object> detail(@RequestHeader(value="Authorization", required=false) String auth, @PathVariable Long id) {
@@ -152,6 +189,7 @@ public class SupportTicketController {
         if (r.body() == null || r.body().isBlank() || r.body().length() > 10000) throw new Bad("Nội dung phản hồi không hợp lệ");
         event(t, a, "REPLY", r.body().trim(), null, null);
         if (admin(a) && !t.status.equals("RESPONDED")) { String old = t.status; t.status = "RESPONDED"; event(t, a, "STATUS", null, old, t.status); }
+        if (admin(a)) { notifyCustomerOfReply(t, r.body().trim()); }
         if (!admin(a) && t.status.equals("RESPONDED")) { t.status = "NEW"; event(t, a, "STATUS", null, "RESPONDED", t.status); }
     }
     @PatchMapping("/{id}/status") @Transactional

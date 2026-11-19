@@ -278,12 +278,11 @@ try {
     $dbHost = if ($env:DB_HOST) { $env:DB_HOST } else { '127.0.0.1' }
     $dbName = if ($env:DB_NAME) { $env:DB_NAME } else { 'farmely' }
     $dbUser = if ($env:DB_USER) { $env:DB_USER } else { 'postgres' }
-    $dbPassword = if ($env:DB_PASSWORD) { $env:DB_PASSWORD } elseif ($env:DB_PASS) { $env:DB_PASS } else { '@Bin054206' }
+    $dbPassword = if ($env:DB_PASSWORD) { $env:DB_PASSWORD } elseif ($env:DB_PASS) { $env:DB_PASS } else { 'postgres' }
 
-    # ponytail: auto-detect working local postgres password so dev environment never gets blocked
+    # Auto-detect working local postgres password from .env or standard defaults
     if ($localPostgres) {
         $psqlCandidates = @(
-            'D:\S5\PostgreSQL\bin\psql.exe',
             'C:\Program Files\PostgreSQL\18\bin\psql.exe',
             'C:\Program Files\PostgreSQL\17\bin\psql.exe',
             'C:\Program Files\PostgreSQL\16\bin\psql.exe',
@@ -293,7 +292,7 @@ try {
         if ($cmdPsql) { $psqlCandidates = @($cmdPsql.Source) + $psqlCandidates }
         $psqlBin = $psqlCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
         if ($psqlBin) {
-            $passCandidates = @($dbPassword, '@Bin054206', '12345', 'postgres', '123456', 'admin', 'root')
+            $passCandidates = @($dbPassword, 'postgres', '12345', '123456', 'admin', 'root')
             foreach ($cand in $passCandidates) {
                 $env:PGPASSWORD = $cand
                 $prevEap = $ErrorActionPreference

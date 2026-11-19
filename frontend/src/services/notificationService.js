@@ -4,11 +4,18 @@
  * 1. Chuyên gia (Expert) tạo quy trình -> Thông báo cho Quản trị viên (Admin) phê duyệt.
  * 2. Khách hàng (Customer) thuê thửa đất -> Thông báo cho Nhân viên (Staff) phụ trách nhận việc.
  * 3. Công việc hàng ngày (Daily Care Tasks) -> Thông báo cho Nhân viên (Staff) làm nhiệm vụ.
+ * 4. Khách hàng (Customer) gửi báo cáo sự cố / hỗ trợ -> Thông báo cho Admin; Admin phản hồi -> Thông báo cho Customer.
  */
 
 const STORAGE_KEY = 'farmely_system_notifications_v1';
 const CHANNEL_NAME = 'farmely_notifications_channel';
 let localNotifSeq = 0;
+
+const truncatePreview = (text, maxLength = 120) => {
+  const normalized = String(text || '').trim();
+  if (!normalized) return '';
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 3)}...` : normalized;
+};
 
 const normalizeNotifRole = (role) => {
   const upper = String(role || '').toUpperCase();
@@ -234,4 +241,90 @@ export const notifyExpertsOfNewPlot = async (savedPlot = {}) => {
       link
     })
   ];
+};
+
+/**
+ * Thông báo cho Admin khi Khách hàng gửi yêu cầu hỗ trợ / báo cáo sự cố mới.
+ */
+export const notifyAdminsOfSupportTicket = async (ticket = {}, customer = null) => {
+  const ticketId = ticket?.id || ticket?.ticketId || null;
+  const customerLabel =
+    ticket?.customerName ||
+    customer?.fullName ||
+    customer?.email ||
+    (ticket?.customerId ? `Khách #${ticket.customerId}` : 'Khách hàng');
+  const ticketTitle = String(ticket?.title || 'Hỗ trợ khách hàng').trim();
+  const preview = truncatePreview(ticket?.description);
+  const idLabel = ticketId ? ` #${ticketId}` : '';
+  const title = `📩 Báo cáo / yêu cầu hỗ trợ mới${idLabel}`;
+  const content = preview
+    ? `${customerLabel} vừa gửi "${ticketTitle}": ${preview}`
+    : `${customerLabel} vừa gửi "${ticketTitle}".`;
+  const link = ticketId
+    ? `/admin/dashboard?tab=support&ticket=${encodeURIComponent(ticketId)}`
+    : '/admin/dashboard?tab=support';
+
+  if (Array.isArray(ticket?.adminNotifications) && ticket.adminNotifications.length > 0) {
+    return Promise.all(
+      ticket.adminNotifications.map((item) =>
+        sendNotification({
+          notificationId: item.notificationId,
+          userId: item.userId,
+          targetRole: item.userId ? null : 'ADMIN',
+          title: item.title || title,
+          content: item.content || content,
+          type: item.type || 'SUPPORT_TICKET',
+          link: item.link || link,
+          skipApiPost: true
+        })
+      )
+    );
+  }
+
+  return [
+    await sendNotification({
+      targetRole: 'ADMIN',
+      title,
+      content,
+      type: 'SUPPORT_TICKET',
+      link,
+      skipApiPost: true
+    })
+  ];
+};
+
+/**
+ * Thông báo cho Khách hàng khi Admin trả lời yêu cầu hỗ trợ / báo cáo sự cố.
+ */
+export const notifyCustomerOfSupportReply = async ({
+  ticketId = null,
+  ticketTitle = '',
+  customerId = null,
+  replyBody = '',
+  customerNotification = null
+} = {}) => {
+  const resolvedCustomerId = Number(customerNotification?.userId || customerId) || null;
+  if (!resolvedCustomerId && !customerNotification?.notificationId) return null;
+
+  const idLabel = ticketId ? ` #${ticketId}` : '';
+  const subject = String(ticketTitle || '').trim() || (ticketId ? `Yêu cầu #${ticketId}` : 'Yêu cầu hỗ trợ');
+  const preview = truncatePreview(replyBody);
+  const title = customerNotification?.title || `💬 Phản hồi yêu cầu hỗ trợ${idLabel}`;
+  const content =
+    customerNotification?.content ||
+    (preview ? `Ban Quản Trị đã phản hồi "${subject}": ${preview}` : `Ban Quản Trị đã phản hồi "${subject}".`);
+  const link =
+    customerNotification?.link ||
+    (ticketId ? `/customer/support/${encodeURIComponent(ticketId)}` : '/customer/support');
+
+  return sendNotification({
+    notificationId: customerNotification?.notificationId || null,
+    userId: resolvedCustomerId,
+    targetRole: null,
+    title,
+    content,
+    type: customerNotification?.type || 'SUPPORT_REPLY',
+    link,
+    skipApiPost: true
+  });
 };

@@ -25,6 +25,8 @@ SET client_encoding = 'UTF8';
 -- ============================================================
 
 DROP TABLE IF EXISTS
+    iot_alerts, password_reset_tokens, demo_cultivation_state, renewal_requests,
+    support_attachments, support_events, support_tickets,
     audit_logs, notifications, messages, conversations,
     issue_reports, harvest_results, farm_diaries, care_tasks,
     payment_transactions, service_requests,
@@ -100,30 +102,33 @@ COMMENT ON COLUMN users.status         IS 'ACTIVE | INACTIVE | BLOCKED';
 -- ============================================================
 
 CREATE TABLE lands (
-    land_id    SERIAL       PRIMARY KEY,
-    land_name  VARCHAR(150) NOT NULL,
-    address    TEXT         NOT NULL,
-    description TEXT,
+    land_id          SERIAL       PRIMARY KEY,
+    land_name        VARCHAR(150) NOT NULL,
+    address          TEXT         NOT NULL,
+    image_url        TEXT,
+    is_published     BOOLEAN      NOT NULL DEFAULT FALSE,
+    description      TEXT,
     boundary_geojson TEXT,
-    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 COMMENT ON TABLE lands IS 'Farm zones containing multiple rental plots';
 
 
 CREATE TABLE plots (
-    plot_id          SERIAL           PRIMARY KEY,
-    land_id          INT              NOT NULL REFERENCES lands(land_id),
-    plot_code        VARCHAR(50)      NOT NULL UNIQUE,
-    area             DECIMAL(10,2)    NOT NULL,
-    image_url        TEXT,
-    price_per_period DECIMAL(15,2)    NOT NULL,
-    status           plot_status_enum NOT NULL DEFAULT 'AVAIL',
-    is_published     BOOLEAN          NOT NULL DEFAULT FALSE,
-    description      TEXT,
-    boundary_geojson TEXT,
-    created_at       TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
-    updated_at       TIMESTAMPTZ      NOT NULL DEFAULT NOW()
+    plot_id              SERIAL           PRIMARY KEY,
+    land_id              INT              NOT NULL REFERENCES lands(land_id),
+    plot_code            VARCHAR(50)      NOT NULL UNIQUE,
+    area                 DECIMAL(10,2)    NOT NULL,
+    image_url            TEXT,
+    price_per_period     DECIMAL(15,2)    NOT NULL,
+    care_price_per_month NUMERIC(12,2)    NOT NULL DEFAULT 800000,
+    status               plot_status_enum NOT NULL DEFAULT 'AVAIL',
+    is_published         BOOLEAN          NOT NULL DEFAULT FALSE,
+    description          TEXT,
+    boundary_geojson     TEXT,
+    created_at           TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
+    updated_at           TIMESTAMPTZ      NOT NULL DEFAULT NOW()
 );
 COMMENT ON TABLE  plots              IS 'Individual rental plots -- the core land unit';
 COMMENT ON COLUMN plots.status       IS 'AVAIL = available | RENT = rented | MAINT = maintenance';
@@ -135,8 +140,11 @@ CREATE TABLE site_visits (
     plot_id       INT               NOT NULL REFERENCES plots(plot_id),
     visitor_name  VARCHAR(150)      NOT NULL,
     visitor_phone VARCHAR(20)       NOT NULL,
+    visitor_email VARCHAR(150),
     visit_date    DATE              NOT NULL,
     visit_slot    visit_slot_enum   NOT NULL,
+    group_size    INT               NOT NULL DEFAULT 2,
+    notes         TEXT,
     status        visit_status_enum NOT NULL DEFAULT 'PENDING',
     created_at    TIMESTAMPTZ       NOT NULL DEFAULT NOW()
 );
@@ -169,6 +177,8 @@ CREATE TABLE varieties (
     variety_name      VARCHAR(150) NOT NULL,
     expected_duration INT          NOT NULL,
     buffer_time       INT          NOT NULL DEFAULT 0,
+    image_url         TEXT,
+    is_active         BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 COMMENT ON TABLE  varieties                   IS 'Specific cultivar with growth-cycle metadata';
@@ -185,12 +195,20 @@ COMMENT ON TABLE plot_variety_compatibility IS 'N:M bridge -- which varieties su
 
 
 CREATE TABLE knowledge_documents (
-    document_id   SERIAL       PRIMARY KEY,
-    kd_created_by INT          NOT NULL REFERENCES users(user_id),
-    title         VARCHAR(255) NOT NULL,
-    content       TEXT,
-    file_url      TEXT,
-    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    document_id        SERIAL       PRIMARY KEY,
+    kd_created_by      INT          NOT NULL REFERENCES users(user_id),
+    variety_id         INT          REFERENCES varieties(variety_id),
+    title              VARCHAR(255) NOT NULL,
+    content            TEXT,
+    file_url           TEXT,
+    document_type      VARCHAR(50)  NOT NULL DEFAULT 'CULTIVATION_GUIDE',
+    version            VARCHAR(50)  NOT NULL DEFAULT 'v2.0',
+    file_size          VARCHAR(50),
+    is_indexed_for_rag BOOLEAN      NOT NULL DEFAULT TRUE,
+    sections_count     INT          NOT NULL DEFAULT 1,
+    status             VARCHAR(50)  NOT NULL DEFAULT 'PUBLISHED',
+    author_name        VARCHAR(150),
+    created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 COMMENT ON TABLE knowledge_documents IS 'Agricultural knowledge base authored by experts';
 
@@ -214,25 +232,33 @@ CREATE TABLE process_templates (
     variety_id    INT          NOT NULL REFERENCES varieties(variety_id),
     pt_created_by INT          NOT NULL REFERENCES users(user_id),
     version       VARCHAR(100) NOT NULL DEFAULT '1.0',
+    name          VARCHAR(255),
+    description   TEXT,
+    status        VARCHAR(30)  NOT NULL DEFAULT 'ACTIVE',
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 COMMENT ON TABLE process_templates IS 'Standard cultivation process template per variety, authored by experts';
 
 
 CREATE TABLE template_steps (
-    step_id       SERIAL        PRIMARY KEY,
-    template_id   INT           NOT NULL REFERENCES process_templates(template_id) ON DELETE CASCADE,
-    step_order    INT           NOT NULL DEFAULT 1,
-    step_name     VARCHAR(150)  NOT NULL,
-    description   TEXT,
-    materials_needed TEXT,
-    day_offset    INT           NOT NULL,
-    duration_days INT           NOT NULL DEFAULT 1,
-    task_type     VARCHAR(50),
-    min_temp      DECIMAL(5,2),
-    max_temp      DECIMAL(5,2),
-    min_humidity  DECIMAL(5,2),
-    max_humidity  DECIMAL(5,2)
+    step_id              SERIAL        PRIMARY KEY,
+    template_id          INT           NOT NULL REFERENCES process_templates(template_id) ON DELETE CASCADE,
+    step_order           INT           NOT NULL DEFAULT 1,
+    step_name            VARCHAR(150)  NOT NULL,
+    description          TEXT,
+    materials_needed     TEXT,
+    day_offset           INT           NOT NULL,
+    duration_days        INT           NOT NULL DEFAULT 1,
+    task_type            VARCHAR(50),
+    water_regime         TEXT,
+    nutrition_regime     TEXT,
+    pest_warning         TEXT,
+    evidence_requirement TEXT,
+    inspection_criteria  TEXT,
+    min_temp             DECIMAL(5,2),
+    max_temp             DECIMAL(5,2),
+    min_humidity         DECIMAL(5,2),
+    max_humidity         DECIMAL(5,2)
 );
 COMMENT ON TABLE  template_steps            IS 'Ordered steps within a cultivation process template';
 COMMENT ON COLUMN template_steps.day_offset  IS 'Days from rental start_date when this step begins';
@@ -328,8 +354,12 @@ CREATE TABLE care_tasks (
     step_id            INT              REFERENCES template_steps(step_id),
     service_request_id INT              REFERENCES service_requests(request_id),
     task_assigned_to   INT              REFERENCES users(user_id),
+    step_order         INT              DEFAULT 1,
+    title              VARCHAR(255),
+    description        TEXT,
     due_date           DATE,
     status             task_status_enum NOT NULL DEFAULT 'PENDING',
+    demo_completed     BOOLEAN          NOT NULL DEFAULT FALSE,
     evidence_image_url TEXT,
     notes              TEXT,
     created_at         TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
@@ -344,7 +374,10 @@ COMMENT ON COLUMN care_tasks.evidence_image_url  IS 'Photo proof of completion u
 CREATE TABLE farm_diaries (
     diary_id   SERIAL      PRIMARY KEY,
     rental_id  INT         NOT NULL REFERENCES rentals(rental_id),
-    task_id    INT         REFERENCES care_tasks(task_id),
+    task_id    INT         REFERENCES care_tasks(task_id) ON DELETE SET NULL,
+    harvest_id INT,
+    step_order INT         DEFAULT 1,
+    title      VARCHAR(255),
     content    TEXT,
     image_url  TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -359,12 +392,19 @@ COMMENT ON COLUMN farm_diaries.task_id IS 'Auto-populated when synced from a com
 CREATE TABLE harvest_results (
     harvest_id         SERIAL             PRIMARY KEY,
     rental_id          INT                NOT NULL REFERENCES rentals(rental_id),
+    season_key         VARCHAR(100),
+    harvest_task_id    INT,
     entered_by         INT                NOT NULL REFERENCES users(user_id),
     harvest_date       DATE               NOT NULL,
     yield_amount       DECIMAL(10,2),
     evidence_image_url TEXT,
     delivery_type      delivery_type_enum NOT NULL,
     customer_confirmed BOOLEAN            NOT NULL DEFAULT FALSE,
+    rating             INT,
+    freshness_rating   INT,
+    packaging_rating   INT,
+    customer_feedback  TEXT,
+    confirmed_at       TIMESTAMPTZ,
     created_at         TIMESTAMPTZ        NOT NULL DEFAULT NOW()
 );
 COMMENT ON TABLE  harvest_results              IS 'End-of-season harvest record and handover confirmation';
@@ -427,11 +467,15 @@ COMMENT ON TABLE notifications IS 'In-app push notifications for all system even
 CREATE TABLE audit_logs (
     log_id      BIGSERIAL    PRIMARY KEY,
     user_id     INT          REFERENCES users(user_id),
+    user_email  VARCHAR(150),
     action      VARCHAR(100) NOT NULL,
     entity_name VARCHAR(100),
+    entity_type VARCHAR(100),
     entity_id   VARCHAR(100),
+    description TEXT,
     details     JSONB,
     ip_address  INET,
+    status      VARCHAR(30)  DEFAULT 'SUCCESS',
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 COMMENT ON TABLE  audit_logs         IS 'Security audit trail for all sensitive operations';
@@ -491,8 +535,10 @@ CREATE INDEX idx_ct_due_date         ON care_tasks(due_date);
 
 CREATE INDEX idx_fd_rental_id        ON farm_diaries(rental_id);
 CREATE INDEX idx_fd_task_id          ON farm_diaries(task_id) WHERE task_id IS NOT NULL;
+CREATE UNIQUE INDEX farm_diaries_one_per_harvest ON farm_diaries(harvest_id) WHERE harvest_id IS NOT NULL;
 
 CREATE INDEX idx_hr_rental_id        ON harvest_results(rental_id);
+CREATE UNIQUE INDEX harvest_results_one_per_task ON harvest_results(rental_id, season_key, harvest_task_id) WHERE harvest_task_id IS NOT NULL;
 
 CREATE INDEX idx_ir_rental_id        ON issue_reports(rental_id);
 CREATE INDEX idx_ir_status           ON issue_reports(status);
@@ -623,20 +669,20 @@ INSERT INTO users (user_id, role_id, email, password_hash, full_name, phone_numb
 ON CONFLICT (user_id) DO NOTHING;
 
 -- 3. BẢNG LANDS (Trang trại Farmely)
-INSERT INTO lands (land_id, land_name, address, description, boundary_geojson) VALUES
-(1, 'Trang trại Happy Valley Củ Chi', 'Đường Nhuận Đức, Xã Nhuận Đức, Huyện Củ Chi, TP. Hồ Chí Minh', 'Khu nông nghiệp công nghệ cao kiểu mẫu tại Củ Chi, đất phù sa bồi lắng.', '{"type":"Polygon","coordinates":[[[106.342,10.6895],[106.3495,10.696],[106.3585,10.6855],[106.3505,10.6795],[106.342,10.6895]]]}'),
-(2, 'Trang trại Cao nguyên Mộc Châu', 'Tiểu khu Mía Đường, Thị trấn Nông trường Mộc Châu, Sơn La', 'Khu vực khí hậu ôn đới cao nguyên, thích hợp rau xứ lạnh và dâu tây.', NULL),
-(3, 'Trang trại Thung lũng Sinh thái Đà Lạt', 'Xã Tà Nung, TP. Đà Lạt, Tỉnh Lâm Đồng', 'Nông trại sinh thái thung lũng sương mù, canh tác hữu cơ VietGAP.', NULL)
+INSERT INTO lands (land_id, land_name, address, is_published, description, boundary_geojson) VALUES
+(1, 'Trang trại Happy Valley Củ Chi', 'Đường Nhuận Đức, Xã Nhuận Đức, Huyện Củ Chi, TP. Hồ Chí Minh', TRUE, 'Khu nông nghiệp công nghệ cao kiểu mẫu tại Củ Chi, đất phù sa bồi lắng.', '{"type":"Polygon","coordinates":[[[106.342,10.6895],[106.3495,10.696],[106.3585,10.6855],[106.3505,10.6795],[106.342,10.6895]]]}'),
+(2, 'Trang trại Cao nguyên Mộc Châu', 'Tiểu khu Mía Đường, Thị trấn Nông trường Mộc Châu, Sơn La', TRUE, 'Khu vực khí hậu ôn đới cao nguyên, thích hợp rau xứ lạnh và dâu tây.', NULL),
+(3, 'Trang trại Thung lũng Sinh thái Đà Lạt', 'Xã Tà Nung, TP. Đà Lạt, Tỉnh Lâm Đồng', FALSE, 'Nông trại sinh thái thung lũng sương mù, canh tác hữu cơ VietGAP.', NULL)
 ON CONFLICT (land_id) DO NOTHING;
 
 -- 4. BẢNG PLOTS (Thửa đất cho thuê - 16 Thửa phân lô thực tế với ranh giới GPS GeoJSON)
 INSERT INTO plots (plot_id, land_id, plot_code, area, image_url, price_per_period, status, is_published, boundary_geojson) VALUES
-(1, 1, 'P-01', 150.00, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80', 1200000.00, 'RENT', TRUE, '{"type":"Polygon","coordinates":[[[106.34757,10.68962],[106.34889,10.69072],[106.350585,10.688805],[106.34925,10.687699],[106.34757,10.68962]]]}'),
-(2, 1, 'P-02', 180.00, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80', 1450000.00, 'RENT', TRUE, '{"type":"Polygon","coordinates":[[[106.34898,10.69078],[106.3503,10.69188],[106.35201,10.689972],[106.350675,10.688865],[106.34898,10.69078]]]}'),
-(3, 1, 'P-03', 200.00, 'https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80', 1700000.00, 'RENT', TRUE, '{"type":"Polygon","coordinates":[[[106.35039,10.69194],[106.35171,10.69304],[106.353435,10.691138],[106.3521,10.690032],[106.35039,10.69194]]]}'),
-(4, 1, 'P-04', 160.00, 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=800&q=80', 1300000.00, 'AVAIL', TRUE, '{"type":"Polygon","coordinates":[[[106.34616,10.68846],[106.34748,10.68956],[106.349175,10.687645],[106.34784,10.686539],[106.34616,10.68846]]]}'),
-(5, 1, 'P-05', 175.00, 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80', 1350000.00, 'AVAIL', TRUE, '{"type":"Polygon","coordinates":[[[106.34757,10.68962],[106.34889,10.69072],[106.350585,10.688805],[106.34925,10.687699],[106.34757,10.68962]]]}'),
-(6, 1, 'P-06', 190.00, 'https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=800&q=80', 1500000.00, 'MAINT', TRUE, '{"type":"Polygon","coordinates":[[[106.34898,10.69078],[106.3503,10.69188],[106.35201,10.689972],[106.350675,10.688865],[106.34898,10.69078]]]}'),
+(1, 1, 'P-01', 150.00, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80', 1200000.00, 'RENT', TRUE, '{"type":"Polygon","coordinates":[[[106.343813,10.689452],[106.345118,10.690545],[106.346782,10.688616],[106.345463,10.687517],[106.343813,10.689452]]]}'),
+(2, 1, 'P-02', 180.00, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80', 1450000.00, 'RENT', TRUE, '{"type":"Polygon","coordinates":[[[106.345257,10.690661],[106.346562,10.691754],[106.348241,10.689832],[106.346922,10.688733],[106.345257,10.690661]]]}'),
+(3, 1, 'P-03', 200.00, 'https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80', 1700000.00, 'RENT', TRUE, '{"type":"Polygon","coordinates":[[[106.3467,10.69187],[106.348006,10.692963],[106.3497,10.691048],[106.348381,10.689948],[106.3467,10.69187]]]}'),
+(4, 1, 'P-04', 160.00, 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=800&q=80', 1300000.00, 'AVAIL', TRUE, '{"type":"Polygon","coordinates":[[[106.348144,10.693079],[106.34945,10.694172],[106.351159,10.692263],[106.34984,10.691164],[106.348144,10.693079]]]}'),
+(5, 1, 'P-05', 175.00, 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80', 1350000.00, 'AVAIL', TRUE, '{"type":"Polygon","coordinates":[[[106.345638,10.687311],[106.346959,10.688411],[106.348622,10.686482],[106.347288,10.685376],[106.345638,10.687311]]]}'),
+(6, 1, 'P-06', 190.00, 'https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=800&q=80', 1500000.00, 'MAINT', TRUE, '{"type":"Polygon","coordinates":[[[106.347099,10.688528],[106.348419,10.689628],[106.350098,10.687705],[106.348764,10.686599],[106.347099,10.688528]]]}'),
 (13, 1, 'P-07', 155.00, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80', 1250000.00, 'RENT', TRUE, '{"type":"Polygon","coordinates":[[[106.34856,10.689744],[106.34988,10.690844],[106.351575,10.688929],[106.35024,10.687823],[106.34856,10.689744]]]}'),
 (14, 1, 'P-08', 165.00, 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80', 1300000.00, 'AVAIL', TRUE, '{"type":"Polygon","coordinates":[[[106.35002,10.690961],[106.351341,10.692061],[106.353051,10.690153],[106.351716,10.689046],[106.35002,10.690961]]]}'),
 (15, 1, 'P-09', 170.00, 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80', 1400000.00, 'AVAIL', TRUE, '{"type":"Polygon","coordinates":[[[106.347463,10.68517],[106.348799,10.686277],[106.350463,10.684348],[106.349113,10.683234],[106.347463,10.68517]]]}'),
@@ -1016,7 +1062,9 @@ SELECT setval(pg_get_serial_sequence('rentals', 'rental_id'), (SELECT COALESCE(M
 SELECT setval(pg_get_serial_sequence('payment_transactions', 'transaction_id'), (SELECT COALESCE(MAX(transaction_id), 1) FROM payment_transactions));
 SELECT setval(pg_get_serial_sequence('care_tasks', 'task_id'), (SELECT COALESCE(MAX(task_id), 1) FROM care_tasks));
 SELECT setval(pg_get_serial_sequence('farm_diaries', 'diary_id'), (SELECT COALESCE(MAX(diary_id), 1) FROM farm_diaries));
+SELECT setval(pg_get_serial_sequence('sensor_readings', 'reading_id'), (SELECT COALESCE(MAX(reading_id), 1) FROM sensor_readings));
 SELECT setval(pg_get_serial_sequence('conversations', 'conversation_id'), (SELECT COALESCE(MAX(conversation_id), 1) FROM conversations));
+SELECT setval(pg_get_serial_sequence('messages', 'message_id'), (SELECT COALESCE(MAX(message_id), 1) FROM messages));
 SELECT setval(pg_get_serial_sequence('knowledge_documents', 'document_id'), (SELECT COALESCE(MAX(document_id), 1) FROM knowledge_documents));
 SELECT setval(pg_get_serial_sequence('site_visits', 'visit_id'), (SELECT COALESCE(MAX(visit_id), 1) FROM site_visits));
 SELECT setval(pg_get_serial_sequence('contract_cancellations', 'cancellation_id'), (SELECT COALESCE(MAX(cancellation_id), 1) FROM contract_cancellations));
@@ -1025,9 +1073,6 @@ SELECT setval(pg_get_serial_sequence('harvest_results', 'harvest_id'), (SELECT C
 SELECT setval(pg_get_serial_sequence('issue_reports', 'issue_id'), (SELECT COALESCE(MAX(issue_id), 1) FROM issue_reports));
 SELECT setval(pg_get_serial_sequence('notifications', 'notification_id'), (SELECT COALESCE(MAX(notification_id), 1) FROM notifications));
 SELECT setval(pg_get_serial_sequence('audit_logs', 'log_id'), (SELECT COALESCE(MAX(log_id), 1) FROM audit_logs));
-SELECT setval(pg_get_serial_sequence('support_tickets', 'id'), (SELECT COALESCE(MAX(id), 1) FROM support_tickets));
-SELECT setval(pg_get_serial_sequence('support_events', 'id'), (SELECT COALESCE(MAX(id), 1) FROM support_events));
-SELECT setval(pg_get_serial_sequence('support_attachments', 'id'), (SELECT COALESCE(MAX(id), 1) FROM support_attachments));
 
 -- ==============================================================================
 -- BẢNG CSKH & HỖ TRỢ KHÁCH HÀNG (SUPPORT TICKETS & FEEDBACK)
@@ -1071,6 +1116,79 @@ CREATE TABLE IF NOT EXISTS support_attachments (
     content BYTEA NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+SELECT setval(pg_get_serial_sequence('support_tickets', 'id'), (SELECT COALESCE(MAX(id), 1) FROM support_tickets));
+SELECT setval(pg_get_serial_sequence('support_events', 'id'), (SELECT COALESCE(MAX(id), 1) FROM support_events));
+SELECT setval(pg_get_serial_sequence('support_attachments', 'id'), (SELECT COALESCE(MAX(id), 1) FROM support_attachments));
+
+-- ==============================================================================
+-- BẢNG VẬN HÀNH MỞ RỘNG (GIA HẠN HỢP ĐỒNG, DEMO TIMELINE, RESET PASSWORD, IOT ALERTS)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS renewal_requests (
+    id                SERIAL PRIMARY KEY,
+    rental_id         INT REFERENCES rentals(rental_id) ON DELETE SET NULL,
+    contract_id       INT REFERENCES contracts(contract_id) ON DELETE SET NULL,
+    plot_code         VARCHAR(50),
+    customer_name     VARCHAR(150),
+    customer_phone    VARCHAR(50),
+    new_variety_id    INT REFERENCES varieties(variety_id) ON DELETE SET NULL,
+    variety_name      VARCHAR(150),
+    cultivation_mode  VARCHAR(50),
+    seasons_count     INT DEFAULT 1,
+    season_number     INT,
+    additional_amount NUMERIC(14, 2),
+    new_end_date      DATE,
+    status            VARCHAR(50) DEFAULT 'PENDING',
+    payment_status    VARCHAR(50) DEFAULT 'PAID',
+    approved_by       INT REFERENCES users(user_id) ON DELETE SET NULL,
+    created_at        TIMESTAMP DEFAULT NOW(),
+    updated_at        TIMESTAMP DEFAULT NOW()
+);
+
+INSERT INTO renewal_requests (rental_id, contract_id, plot_code, customer_name, customer_phone, new_variety_id, variety_name, cultivation_mode, seasons_count, season_number, additional_amount, new_end_date, status, payment_status, created_at)
+SELECT 2, 2, 'P-05', 'Tạ Nguyễn Khôi Nguyên', '0912345678', 2, 'Cải ngọt bông F1', 'ASSISTED', 1, 2, 1200000, CURRENT_DATE + INTERVAL '45 days', 'PENDING', 'PAID', NOW() - INTERVAL '1 hour'
+WHERE NOT EXISTS (SELECT 1 FROM renewal_requests);
+
+SELECT setval(pg_get_serial_sequence('renewal_requests', 'id'), (SELECT COALESCE(MAX(id), 1) FROM renewal_requests));
+
+CREATE TABLE IF NOT EXISTS demo_cultivation_state (
+    rental_id  INTEGER NOT NULL REFERENCES rentals(rental_id) ON DELETE CASCADE,
+    season_key VARCHAR(100) NOT NULL,
+    current_day INTEGER NOT NULL DEFAULT 1,
+    total_days INTEGER NOT NULL,
+    is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (rental_id, season_key)
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    token_id   BIGSERIAL PRIMARY KEY,
+    token      VARCHAR(120) NOT NULL UNIQUE,
+    user_id    INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used       BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS iot_alerts (
+    alert_id         BIGSERIAL PRIMARY KEY,
+    plot_id          INTEGER NOT NULL REFERENCES plots(plot_id) ON DELETE CASCADE,
+    alert_type       VARCHAR(60) NOT NULL,
+    severity         VARCHAR(30) NOT NULL DEFAULT 'WARNING',
+    status           VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
+    metric_name      VARCHAR(100),
+    actual_value     NUMERIC(6, 2),
+    threshold_value  NUMERIC(6, 2),
+    message          TEXT,
+    action_suggested TEXT,
+    detected_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    resolved_at      TIMESTAMPTZ,
+    resolved_by      VARCHAR(100),
+    resolution_notes TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_alert_plot_id     ON iot_alerts(plot_id);
+CREATE INDEX IF NOT EXISTS idx_alert_status      ON iot_alerts(status);
+CREATE INDEX IF NOT EXISTS idx_alert_detected_at ON iot_alerts(detected_at DESC);
 
 -- ==============================================================================
 -- HOÀN TẤT THIẾT LẬP CƠ SỞ DỮ LIỆU FARMELY!

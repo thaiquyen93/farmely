@@ -11,7 +11,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:farmely}}
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:@Bin054206}
+    password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -24,7 +24,7 @@ spring:
 
 storage:
   upload-dir: ${UPLOAD_DIR:uploads/documents}
-  docs-dir: ${DOCS_DIR:d:/S5/Farmely/docs}
+  docs-dir: ${DOCS_DIR:./docs}
 
 springdoc:
   api-docs:

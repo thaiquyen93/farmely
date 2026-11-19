@@ -14,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
@@ -67,5 +68,20 @@ public class UserController {
             @RequestParam String status) {
         UserResponse user = userService.changeStatus(id, status);
         return ResponseEntity.ok(ApiResponse.ok("Cập nhật trạng thái thành công", user));
+    }
+
+    @PatchMapping("/{id}/role")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Phân quyền vai trò tài khoản (ADMIN, EXPERT, STAFF, CUSTOMER)", description = "Chỉ Admin được phép thao tác")
+    public ResponseEntity<ApiResponse<UserResponse>> changeRole(
+            @PathVariable Integer id,
+            @RequestParam(required = false) String role,
+            @RequestBody(required = false) Map<String, String> body) {
+        String resolvedRole = role;
+        if ((resolvedRole == null || resolvedRole.isBlank()) && body != null) {
+            resolvedRole = body.get("role");
+        }
+        UserResponse user = userService.changeRole(id, resolvedRole);
+        return ResponseEntity.ok(ApiResponse.ok("Cập nhật vai trò thành công", user));
     }
 }

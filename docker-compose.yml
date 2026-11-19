@@ -1,21 +1,21 @@
 services:
   # ==========================================================
-  # 1. HẠ TẦNG (INFRASTRUCTURE)
+  # 1. INFRASTRUCTURE
   # ==========================================================
   postgres:
     image: postgres:16-alpine
     container_name: farmely-postgres
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-@Bin054206}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-farmely}
     ports:
       - "5432:5432"
     volumes:
       - farmely_postgres_data:/var/lib/postgresql/data
-      - ./Database/farmely_full_database.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./docs/database/farmely_full_database.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d farmely"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-farmely}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -26,8 +26,8 @@ services:
     image: rabbitmq:3.13-management-alpine
     container_name: farmely-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -35,7 +35,7 @@ services:
       - farmely-net
 
   # ==========================================================
-  # 2. CÁC MODULE DỊCH VỤ BACKEND
+  # 2. BACKEND MICROSERVICES
   # ==========================================================
   api-gateway:
     build:
@@ -45,13 +45,13 @@ services:
     environment:
       - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
       - SPRING_PROFILES_ACTIVE=docker
-      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
-      - DB_HOST=host.docker.internal
-      - DB_PORT=5434
-      - DB_NAME=newfarmely2
-      - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-@Bin054206}
-      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
+      - DB_URL=jdbc:postgresql://postgres:5432/${DB_NAME:-farmely}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-farmely}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASSWORD:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - IDENTITY_SERVICE_HOST=identity-service
       - FARM_SERVICE_HOST=farm-service
       - KNOWLEDGE_SERVICE_HOST=knowledge-service
@@ -77,13 +77,13 @@ services:
     environment:
       - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
       - FARMELY_DEMO_AUTH_ENABLED=${FARMELY_DEMO_AUTH_ENABLED:-false}
-      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
-      - DB_HOST=host.docker.internal
-      - DB_PORT=5434
-      - DB_NAME=newfarmely2
-      - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-@Bin054206}
-      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
+      - DB_URL=jdbc:postgresql://postgres:5432/${DB_NAME:-farmely}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-farmely}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASSWORD:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
     ports:
       - "8081:8081"
     depends_on:
@@ -99,13 +99,13 @@ services:
     container_name: farmely-farm-service
     environment:
       - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
-      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
-      - DB_HOST=host.docker.internal
-      - DB_PORT=5434
-      - DB_NAME=newfarmely2
-      - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-@Bin054206}
-      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
+      - DB_URL=jdbc:postgresql://postgres:5432/${DB_NAME:-farmely}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-farmely}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASSWORD:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
     ports:
       - "8082:8082"
     depends_on:
@@ -121,13 +121,13 @@ services:
     container_name: farmely-knowledge-service
     environment:
       - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
-      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
-      - DB_HOST=host.docker.internal
-      - DB_PORT=5434
-      - DB_NAME=newfarmely2
-      - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-@Bin054206}
-      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
+      - DB_URL=jdbc:postgresql://postgres:5432/${DB_NAME:-farmely}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-farmely}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASSWORD:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
     ports:
       - "8083:8083"
     depends_on:
@@ -143,13 +143,13 @@ services:
     container_name: farmely-rental-service
     environment:
       - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
-      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
-      - DB_HOST=host.docker.internal
-      - DB_PORT=5434
-      - DB_NAME=newfarmely2
-      - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-@Bin054206}
-      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
+      - DB_URL=jdbc:postgresql://postgres:5432/${DB_NAME:-farmely}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-farmely}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASSWORD:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
     ports:
       - "8084:8084"
     depends_on:
@@ -165,13 +165,17 @@ services:
     container_name: farmely-payment-service
     environment:
       - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
-      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
-      - DB_HOST=host.docker.internal
-      - DB_PORT=5434
-      - DB_NAME=newfarmely2
-      - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-@Bin054206}
-      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
+      - DB_URL=jdbc:postgresql://postgres:5432/${DB_NAME:-farmely}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-farmely}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASSWORD:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - VNP_TMN_CODE=${VNP_TMN_CODE:-your_vnpay_tmn_code}
+      - VNP_HASH_SECRET=${VNP_HASH_SECRET:-your_vnpay_hash_secret}
+      - VNP_PAY_URL=${VNP_PAY_URL:-https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+      - VNP_RETURN_URL=${VNP_RETURN_URL:-http://localhost:3000/payment/vnpay-return}
     ports:
       - "8085:8085"
     depends_on:
@@ -187,13 +191,13 @@ services:
     container_name: farmely-cultivation-service
     environment:
       - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
-      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
-      - DB_HOST=host.docker.internal
-      - DB_PORT=5434
-      - DB_NAME=newfarmely2
-      - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-@Bin054206}
-      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
+      - DB_URL=jdbc:postgresql://postgres:5432/${DB_NAME:-farmely}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-farmely}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASSWORD:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
     ports:
       - "8086:8086"
     depends_on:
@@ -209,13 +213,13 @@ services:
     container_name: farmely-communication-service
     environment:
       - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
-      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
-      - DB_HOST=host.docker.internal
-      - DB_PORT=5434
-      - DB_NAME=newfarmely2
-      - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-@Bin054206}
-      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
+      - DB_URL=jdbc:postgresql://postgres:5432/${DB_NAME:-farmely}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-farmely}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASSWORD:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
     ports:
       - "8087:8087"
     depends_on:
@@ -231,13 +235,13 @@ services:
     container_name: farmely-monitoring-service
     environment:
       - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
-      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
-      - DB_HOST=host.docker.internal
-      - DB_PORT=5434
-      - DB_NAME=newfarmely2
-      - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-@Bin054206}
-      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
+      - DB_URL=jdbc:postgresql://postgres:5432/${DB_NAME:-farmely}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-farmely}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASSWORD:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
     ports:
       - "8088:8088"
     depends_on:
@@ -253,11 +257,11 @@ services:
     container_name: farmely-ai-service
     environment:
       - PORT=8089
-      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-password}@host.docker.internal:5434/newfarmely2
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-farmely}
       - FALLBACK_SQLITE=True
-      - GEMINI_API_KEY=AQ.Ab8RN6K0wb1XH3ta2C6tAxmani1IxlCHdiySo0bwZPhd63KIWw
-      - LLM_MODEL=gemini-3-flash-preview
-      - EMBEDDING_MODEL=models/gemini-embedding-001
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-your_gemini_api_key_here}
+      - LLM_MODEL=${LLM_MODEL:-gemini-3-flash-preview}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-models/gemini-embedding-001}
       - TOP_K=3
       - SIMILARITY_THRESHOLD=0.10
     ports:
@@ -269,7 +273,7 @@ services:
       - farmely-net
 
   # ==========================================================
-  # 3. GIAO DIỆN NGƯỜI DÙNG (FRONTEND)
+  # 3. FRONTEND WEB APPLICATION
   # ==========================================================
   frontend:
     build:
@@ -278,6 +282,12 @@ services:
     container_name: farmely-frontend
     environment:
       - IDENTITY_SERVICE_URL=http://identity-service:8081
+      - PGHOST=postgres
+      - PGPORT=5432
+      - PGDATABASE=${DB_NAME:-farmely}
+      - PGUSER=${DB_USER:-postgres}
+      - PGPASSWORD=${DB_PASSWORD:-postgres}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-your_gemini_api_key_here}
     ports:
       - "3000:3000"
     depends_on:

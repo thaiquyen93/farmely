@@ -7,6 +7,7 @@ import { SupportPanel } from './SupportPage';
 import { supportApi } from '../../api/supportApi';
 import { useAuthStore } from '../../stores/authStore';
 import { AdminSupportRedirect } from '../../App';
+import { getNotificationsForUser } from '../../services/notificationService';
 
 vi.mock('../../api/supportApi', () => ({
   supportApi: {
@@ -25,11 +26,13 @@ const mount = async (node, initialEntry = '/') => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   useAuthStore.setState({ user: { userId: 11, email: 'admin@farmely.vn', role: 'ADMIN' }, token: 'valid.jwt.token', isAuthenticated: true });
   supportApi.list.mockResolvedValue([ticket]);
   supportApi.detail.mockResolvedValue({ ticket, events: [], attachments: [] });
   supportApi.status.mockResolvedValue({ ...ticket, status: 'RESPONDED' });
   supportApi.create.mockResolvedValue(ticket);
+  supportApi.reply.mockResolvedValue({ success: true });
 });
 
 describe('CSKH trong dashboard admin', () => {
@@ -62,12 +65,36 @@ describe('CSKH trong dashboard admin', () => {
     expect(view.host.textContent).toContain('Gửi phản hồi');
     await view.unmount();
   });
+
+  it('gửi thông báo tới khách hàng sở hữu ticket khi admin phản hồi', async () => {
+    supportApi.reply.mockResolvedValue({
+      success: true,
+      customerNotification: { notificationId: 88, userId: 1 }
+    });
+    const view = await mount(<SupportPanel admin selectedTicketId="7" onBack={() => {}} />);
+    const textarea = view.host.querySelector('textarea[aria-label="Nội dung phản hồi"]');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(textarea, 'Đã xử lý sự cố tưới cho bạn');
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      view.host.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+    });
+    expect(supportApi.reply).toHaveBeenCalledWith('7', 'Đã xử lý sự cố tưới cho bạn');
+    const customerNotifs = getNotificationsForUser({ userId: 1, role: 'CUSTOMER' });
+    expect(customerNotifs).toHaveLength(1);
+    expect(customerNotifs[0].title).toContain('#7');
+    expect(customerNotifs[0].link).toBe('/customer/support/7');
+    expect(getNotificationsForUser({ userId: 2, role: 'CUSTOMER' })).toHaveLength(0);
+    await view.unmount();
+  });
 });
 
 describe('Hỗ trợ khách hàng', () => {
-  beforeEach(() => useAuthStore.setState({ user: { userId: 1, email: 'customer@farmely.vn', role: 'CUSTOMER' }, token: 'valid.jwt.token', isAuthenticated: true }));
+  beforeEach(() => useAuthStore.setState({ user: { userId: 1, fullName: 'Lô Thái Quyền', email: 'customer@farmely.vn', role: 'CUSTOMER' }, token: 'valid.jwt.token', isAuthenticated: true }));
 
-  it('chỉ gửi danh mục và mô tả, tiêu đề do hệ thống tạo', async () => {
+  it('chỉ gửi danh mục và mô tả, tiêu đề do hệ thống tạo và gửi thông báo cho admin', async () => {
     const view = await mount(<SupportPanel />);
     expect(view.host.textContent).toContain('Tiêu đề:');
     expect(view.host.textContent).not.toContain('Tiêu đề tự tạo');
@@ -76,6 +103,11 @@ describe('Hỗ trợ khách hàng', () => {
     await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(textarea, 'Tôi cần hỗ trợ'); textarea.dispatchEvent(new Event('input', { bubbles: true })); });
     await act(async () => { view.host.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await Promise.resolve(); });
     expect(supportApi.create).toHaveBeenCalledWith({ category: 'ACCOUNT', description: 'Tôi cần hỗ trợ' });
+    const adminNotifs = getNotificationsForUser({ userId: 11, role: 'ADMIN' });
+    expect(adminNotifs).toHaveLength(1);
+    expect(adminNotifs[0].title).toContain('#7');
+    expect(adminNotifs[0].link).toBe('/admin/dashboard?tab=support&ticket=7');
+    expect(getNotificationsForUser({ userId: 1, role: 'CUSTOMER' })).toHaveLength(0);
     await view.unmount();
   });
 

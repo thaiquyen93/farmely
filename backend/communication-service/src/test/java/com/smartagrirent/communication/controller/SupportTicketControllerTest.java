@@ -42,12 +42,14 @@ class SupportTicketControllerTest {
     }
     @Test void adminReplyRecordsReplyAndStatusStep() {
         EntityManager em = mock(EntityManager.class);
-        SupportTicket t = new SupportTicket(); t.id = 7L; t.customerId = 1;
+        SupportTicket t = new SupportTicket(); t.id = 7L; t.customerId = 1; t.title = "Kiểm tra CSKH";
         when(em.find(SupportTicket.class, 7L)).thenReturn(t);
-        SupportTicketController controller = new SupportTicketController(em, mock(JdbcTemplate.class), SECRET);
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        SupportTicketController controller = new SupportTicketController(em, jdbc, SECRET);
         controller.reply(token(11, "ADMIN"), 7L, new SupportTicketController.ReplyRequest("Đã kiểm tra"));
         assertEquals("RESPONDED", t.status);
         verify(em, times(2)).persist(argThat(value -> value instanceof com.smartagrirent.communication.entity.SupportEvent));
+        verify(jdbc).update(contains("insert into notifications"), eq(1), contains("#7"), contains("Đã kiểm tra"));
         assertThrows(RuntimeException.class, () -> controller.reply("Bearer invalid", 7L, new SupportTicketController.ReplyRequest("X")));
     }
     @Test void customerReplyReopensRespondedTicketAndRecordsHistory() {
@@ -71,12 +73,14 @@ class SupportTicketControllerTest {
     }
     @Test void createGeneratesTitleFromCategoryWithoutRelatedFields() {
         EntityManager em = mock(EntityManager.class);
-        SupportTicketController controller = new SupportTicketController(em, mock(JdbcTemplate.class), SECRET);
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        SupportTicketController controller = new SupportTicketController(em, jdbc, SECRET);
         SupportTicket created = controller.create(token(1, "CUSTOMER"),
                 new SupportTicketController.CreateRequest("RENTAL", null, "Cần kiểm tra thanh toán", null, null, null));
         assertEquals("Hỗ trợ về thuê đất, hợp đồng & thanh toán", created.title);
         assertEquals("NEW", created.status);
         verify(em, times(2)).persist(any());
+        verify(jdbc).update(contains("insert into notifications"), contains("Báo cáo / yêu cầu hỗ trợ mới"), contains("Cần kiểm tra thanh toán"));
     }
     @Test void listMapsLegacyStatusAndSortsNewestFirst() {
         EntityManager em = mock(EntityManager.class);

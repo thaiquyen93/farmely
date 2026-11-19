@@ -12,4 +12,5 @@ public interface UserService {
     UserResponse updateProfile(Integer id, UpdateUserRequest request);
     void changePassword(Integer id, ChangePasswordRequest request);
     UserResponse changeStatus(Integer id, String status);
+    UserResponse changeRole(Integer id, String role);
 }

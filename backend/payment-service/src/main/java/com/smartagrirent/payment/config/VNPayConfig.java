@@ -19,10 +19,10 @@ public class VNPayConfig {
     @Value("${vnpay.return-url:http://localhost:3000/payment/vnpay-return}")
     private String vnpReturnUrl;
 
-    @Value("${vnpay.tmn-code:5E6U88TK}")
+    @Value("${vnpay.tmn-code:your_vnpay_tmn_code}")
     private String vnpTmnCode;
 
-    @Value("${vnpay.hash-secret:FVODBIXVDLVSNWYKDIZEOXHWAIMCHDSH}")
+    @Value("${vnpay.hash-secret:your_vnpay_hash_secret}")
     private String vnpHashSecret;
 
     @Value("${vnpay.version:2.1.0}")

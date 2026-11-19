@@ -4,6 +4,10 @@ import { Camera, ChevronRight, Headphones, MessageSquareText, Paperclip, Send } 
 import CustomerAccountLayout from '../../components/customer/CustomerAccountLayout';
 import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
 import { supportApi } from '../../api/supportApi';
+import {
+  notifyAdminsOfSupportTicket,
+  notifyCustomerOfSupportReply
+} from '../../services/notificationService';
 
 const categories = {
   ACCOUNT: 'Tài khoản & hệ thống',
@@ -165,8 +169,9 @@ export function SupportPanel({ admin = false, selectedTicketId = null, onSelectT
       setError('Ảnh phải là JPEG, PNG hoặc WebP và tối đa 5 MB'); return;
     }
     run(async () => {
-      const created = await supportApi.create(form);
+      const created = await supportApi.create({ ...form });
       if (file) await supportApi.upload(created.id, file);
+      await notifyAdminsOfSupportTicket(created, user);
       setForm({ category: 'ACCOUNT', description: '' }); setFile(null);
       broadcastSupportEvent({ type: 'TICKET_CREATED', ticketId: created.id });
     });
@@ -178,7 +183,15 @@ export function SupportPanel({ admin = false, selectedTicketId = null, onSelectT
   const sendReply = (e) => {
     e.preventDefault();
     run(async () => {
-      await supportApi.reply(id, reply);
+      const replyText = reply;
+      const replyRes = await supportApi.reply(id, replyText);
+      await notifyCustomerOfSupportReply({
+        ticketId: detail?.ticket?.id || id,
+        ticketTitle: detail?.ticket?.title,
+        customerId: detail?.ticket?.customerId || replyRes?.customerNotification?.userId,
+        replyBody: replyText,
+        customerNotification: replyRes?.customerNotification || null
+      });
       setReply('');
       broadcastSupportEvent({ type: 'REPLY_ADDED', ticketId: id });
     });
