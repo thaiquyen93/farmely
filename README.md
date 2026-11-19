@@ -1,233 +1,218 @@
-# 🌾 Farmely — Smart Farm Plot Rental Platform
-
-> A full-stack web platform where urban residents can rent individual farm plots, choose between self-growing or assisted-growing models, and track their crops through IoT sensors and daily farm diaries.
-
 <div align="center">
 
-[![Course: ISP392](https://img.shields.io/badge/Course-FPT_University_ISP392-blue.svg?style=flat-square)](#)
-[![Backend: Spring Boot](https://img.shields.io/badge/Backend-Spring_Boot_3-6DB33F.svg?style=flat-square&logo=springboot)](#)
-[![Frontend: React](https://img.shields.io/badge/Frontend-React_19_Vite-61dafb.svg?style=flat-square&logo=react)](#)
-[![Database: PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL_16-336791.svg?style=flat-square&logo=postgresql)](#)
+# 🌾 Farmely
+### Smart Farm Plot Rental & Transparent Cultivation Tracking Platform
+
+[![React 19](https://img.shields.io/badge/Frontend-React_19_%7C_Vite_6_%7C_Tailwind_4-61DAFB?style=flat-square&logo=react&logoColor=black)](./frontend)
+[![Spring Boot 3](https://img.shields.io/badge/Backend-Spring_Boot_3_%7C_Java_21-6DB33F?style=flat-square&logo=springboot&logoColor=white)](./backend)
+[![PostgreSQL 16](https://img.shields.io/badge/Database-PostgreSQL_16_(28_Tables)-336791?style=flat-square&logo=postgresql&logoColor=white)](./docs/database/farmely_full_database.sql)
+[![AI RAG](https://img.shields.io/badge/AI-Gemini_Hybrid_RAG-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)](./backend/ai-service)
+[![GIS Map](https://img.shields.io/badge/GIS-MapLibre_GL_%7C_GeoJSON-396CB2?style=flat-square)](./frontend/src)
+[![Docker](https://img.shields.io/badge/Deploy-Docker_Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](./docker-compose.yml)
+
+<p align="center">
+  A full-stack agritech platform where customers rent <strong>real farm plots</strong> on an interactive GIS satellite map, choose <strong>VietGAP-standardized crops</strong>, opt between <strong>Self-growing</strong> or <strong>Assisted-growing</strong> care plans, and track crop progress remotely through microclimate weather data, photo-verified field diaries, an AI agronomy assistant, and live expert consultation.
+</p>
+
+<p align="center">
+  <a href="#-demo-video"><strong>🎬 Demo Video</strong></a> ·
+  <a href="#-screenshots"><strong>📸 Screenshots</strong></a> ·
+  <a href="#-system-architecture--tech-stack"><strong>🏗️ Architecture</strong></a> ·
+  <a href="#-getting-started"><strong>🚀 Quick Start</strong></a> ·
+  <a href="#-demo-accounts"><strong>🔑 Demo Accounts</strong></a>
+</p>
+
+<a id="-demo-video" href="https://youtu.be/Or5_FkHV9C0">
+  <img src="./docs/screenshots/landingpage.png" alt="Farmely Demo Video" width="100%" />
+</a>
+<br />
+<sub>▶️ <strong>Click the banner above to watch the full Demo Video on YouTube</strong></sub>
 
 </div>
 
 ---
 
-## What This Project Is
+## ✨ Key Features
 
-This is an **academic course project (ISP392)** at FPT University, built by a team of 4 students over the Spring 2026 semester. I worked as the **System Analyst & Requirements Lead** — meaning I was responsible for gathering requirements, designing the database, writing business rules, and making sure what we built actually matched what users needed.
+- **🗺️ Interactive GIS Satellite Marketplace (`MapLibre GL + GeoJSON`):** Visualizes 16 real farm plots (`P-01` → `P-16`) with polygon boundaries, real-time availability status (`AVAIL`, `RENT`, `MAINT`), and plot-to-variety compatibility filtering.
+- **📜 Master Lease Booking & VNPay Checkout:** Supports multi-plot master lease agreements, a 15-minute reservation hold with automatic timeout release, 100% lump-sum online payment (`VNPay Sandbox 2.1.0`), contract renewal, and tiered refund cancellation.
+- **🌱 Dual Cultivation Modes & 10 VietGAP Templates:** Automatically generates scheduled field tasks (`Care Tasks`) from 10 standardized VietGAP crop processes (88 milestones) for `Assisted-growing`, or offers on-demand à-la-carte services (`S01`–`S15`) for `Self-growing`.
+- **🌦️ Microclimate Monitoring & Photo-Verified Farm Diaries:** Tracks soil moisture, temperature, and weather alerts; enforces mandatory field-photo evidence for completed tasks and transparent harvest weighing (`PICKUP` / `DELIVERY`).
+- **🤖 Farmely AI (Hybrid RAG) & Real-Time Expert Chat:** Combines a 24/7 Gemini-powered Hybrid RAG chatbot grounded in VietGAP/IPM manuals with real-time 1-on-1 messaging and cross-role system notifications.
 
-The idea: City people want to grow their own vegetables but don't have land or expertise. Farmely lets them rent a pre-prepared farm plot online, pick what crops to grow, and either farm it themselves (with guidelines) or pay for staff to handle it. They can check on their plot anytime through IoT sensors and daily photo logs.
+### Role-Based Access Control (4 Roles)
 
----
-
-## System Architecture Overview
-
-```mermaid
-graph TB
-    subgraph Client["🖥️ Frontend (React 19 + Vite)"]
-        MP["Marketplace Page"]
-        PD["Plot Detail & Booking"]
-        CD["Customer Dashboard"]
-        FD["Farm Diary Viewer"]
-    end
-
-    subgraph Server["⚙️ Backend (Spring Boot 3)"]
-        AUTH["Identity Service"]
-        RENTAL["Rental & Contract Service"]
-        FARM["Farm & Plot Service"]
-        IOT["IoT Data Service"]
-        PAY["Payment Service"]
-    end
-
-    subgraph DB["🗄️ PostgreSQL 16 (3NF)"]
-        TABLES[("12 Tables\nFarm, Plot, Contract,\nContractPlot, User,\nPayment, FarmDiary...")]
-    end
-
-    Client -->|REST API| Server
-    Server -->|JPA / SQL| DB
-    IOT -.->|Sensor Data| FARM
-
-    style Client fill:#e8f4fd,stroke:#2196F3
-    style Server fill:#e8f5e9,stroke:#4CAF50
-    style DB fill:#fff3e0,stroke:#FF9800
-```
+| Role | Core Capabilities |
+| :--- | :--- |
+| **👤 Customer (`CUSTOMER`)** | Explore plots on the GIS map, book site visits, sign lease contracts, track diaries & weather, order extra care services, submit support tickets, confirm harvest delivery. |
+| **🧑‍🔬 Agronomist (`EXPERT`)** | Manage crops & varieties, author VietGAP cultivation templates, configure plot-variety compatibility, diagnose field issues, dispatch urgent tasks, consult customers & staff. |
+| **👷 Field Worker (`FIELD_WORKER`)** | Execute assigned care tasks & à-la-carte services, upload mandatory field-photo proof to diaries, host site visits, report field issues, record harvest yields. |
+| **🛡️ Administrator (`ADMIN`)** | Manage users & RBAC role assignments, publish lands/plots, approve contracts/cancellations/renewals, coordinate staff, handle customer support tickets & audit logs. |
 
 ---
 
-## My BA Contributions
+## 👨‍💻 My Role & Key Contributions
 
-### 1. Business Rules Document (SSoT)
+> *Academic Capstone Project (**ISP392** — FPT University) · Full-Stack Microservices Architecture*
+<!-- Customize these bullet points to match your personal CV focus -->
 
-I wrote and maintained a single document containing **27 business rules** (BR01–BR27) that the whole team referenced during development. Some examples:
-
-- **BR01 — Master Lease Agreement:** One contract covers multiple plots. We chose this over a shopping-cart model because it simplified payment processing and reduced database complexity.
-- **BR08 — 10-Minute Reservation Hold:** When someone starts booking a plot, it's held for 10 minutes. If they don't pay, it automatically releases back. This prevented "ghost bookings" where plots looked taken but weren't actually paid for.
-- **BR27 — Lump-Sum Pricing:** All farming services are priced as a flat fee, not itemized by materials used. We made this trade-off (YAGNI) to avoid building an inventory tracking system that wasn't core to the MVP.
-
-### 2. Requirements Traceability Matrix (RTM)
-
-I created a spreadsheet that maps each business goal → functional requirements → use cases → database tables → test cases. This helped us catch **5 missing edge cases** early (e.g., what happens if a customer tries to cancel a contract mid-harvest?) before any code was written.
-
-```mermaid
-graph LR
-    BG["🎯 Business Goals"] --> FR["📋 Functional\nRequirements (30+)"]
-    FR --> UC["📝 Use Cases"]
-    UC --> ERD["🗄️ Database Tables"]
-    ERD --> TC["✅ Test Cases (40+)"]
-
-    style BG fill:#e3f2fd,stroke:#1976D2
-    style FR fill:#e8f5e9,stroke:#388E3C
-    style UC fill:#fff3e0,stroke:#F57C00
-    style ERD fill:#fce4ec,stroke:#C62828
-    style TC fill:#f3e5f5,stroke:#7B1FA2
-```
-
-### 3. Database Design (ERD)
-
-Designed the schema in Draw.io with **12 tables** normalized to **3NF**:
-
-```mermaid
-erDiagram
-    Farm ||--o{ Plot : contains
-    Plot ||--o{ ContractPlot : "rented via"
-    Contract ||--o{ ContractPlot : covers
-    Contract }o--|| User : "signed by"
-    Contract ||--o{ Payment : "paid through"
-    Plot ||--o{ FarmDiary : "logged in"
-    Plot ||--o| IoTStation : "monitored by"
-    Farm ||--o{ CropVariety : offers
-    User ||--o{ Consultation : requests
-    User ||--o{ Notification : receives
-
-    Farm {
-        int farm_id PK
-        string name
-        string address
-        float total_area
-    }
-
-    Plot {
-        int plot_id PK
-        int farm_id FK
-        float area_sqm
-        string status
-        string gps_coords
-    }
-
-    Contract {
-        int contract_id PK
-        int user_id FK
-        date start_date
-        date end_date
-        string farming_model
-        decimal total_price
-    }
-
-    ContractPlot {
-        int contract_id FK
-        int plot_id FK
-        int crop_variety_id FK
-    }
-
-    Payment {
-        int payment_id PK
-        int contract_id FK
-        decimal amount
-        string status
-        timestamp paid_at
-    }
-
-    FarmDiary {
-        int diary_id PK
-        int plot_id FK
-        date log_date
-        string task_description
-        string photo_url
-    }
-
-    IoTStation {
-        int station_id PK
-        int plot_id FK
-        float soil_moisture
-        float temperature
-        timestamp reading_at
-    }
-```
-
-Key decision: `ContractPlot` is a junction table that links one contract to multiple plots — this is how the Master Lease Agreement (BR01) works at the database level.
-
-### 4. Use Cases & UAT Testing
-
-- Wrote detailed Use Case specs with Main Flow, Alternative Flows, and Exception Flows for each core feature (booking, payment, cancellation, farm diary).
-- Created **40+ UAT test scenarios** and ran them manually with the team before demo day. We tested happy paths, cancellation edge cases, and payment timeout rollbacks.
+- **Full-Stack Feature Delivery:** Built end-to-end workflows across React 19 and Spring Boot 3, including multi-step plot & land preparation (`Admin Draft → Expert Variety/Template → Publish → Marketplace`), booking lead-time validation, and contract renewal/cancellation flows.
+- **RBAC & Support Notification System:** Implemented Admin role management (`ADMIN`, `EXPERT`, `FIELD_WORKER`, `CUSTOMER`) with self-demotion/last-admin guards and bidirectional real-time notifications between Customers and Admins for support tickets.
+- **AI Chat & Realtime Communication:** Grounded the Gemini Hybrid RAG assistant with live plot/rental context and synchronized multi-tab customer–expert messaging (`PostgreSQL` + `BroadcastChannel`).
+- **Testing & Performance:** Added automated unit tests with **Vitest** and **JUnit/MockMvc**, streamlined dashboard UI responsiveness, and tuned JVM memory flags for multi-service local/Docker runs.
 
 ---
 
-## User Booking Flow (BPMN-style)
+## 📸 Screenshots
 
-```mermaid
-flowchart TD
-    A([Customer visits Marketplace]) --> B{Found a\nplot they like?}
-    B -- No --> A
-    B -- Yes --> C[Select Crop & Farming Model\n- Self-growing\n- Assisted-growing]
-    C --> D[Optional: Book Agronomist\nConsultation]
-    D --> E[Confirm & Pay\nMaster Lease Agreement]
-    E --> F{Payment\nwithin 10 min?}
-    F -- No --> G[🔴 Auto-release plot\nBR08 Timeout Rollback]
-    G --> A
-    F -- Yes --> H[✅ Contract Activated\nPlot Assigned to Customer]
-    H --> I[Field Staff executes\ndaily farming tasks]
-    I --> J[Farm Diary updated\nwith photos & notes]
-    J --> K[Customer views progress\non Dashboard]
-    K --> L{Harvest\nready?}
-    L -- No --> I
-    L -- Yes --> M([🎉 Harvest Delivered\nto Customer])
-
-    style A fill:#e3f2fd,stroke:#1976D2
-    style H fill:#e8f5e9,stroke:#388E3C
-    style G fill:#ffebee,stroke:#C62828
-    style M fill:#e8f5e9,stroke:#388E3C
-```
+<div align="center">
+  <table>
+    <tr>
+      <td width="50%" align="center">
+        <img src="./docs/screenshots/landingpage.png" alt="Landing Page" width="100%" />
+        <br /><sub><strong>Landing Page</strong></sub>
+      </td>
+      <td width="50%" align="center">
+        <img src="./docs/screenshots/market.png" alt="Marketplace" width="100%" />
+        <br /><sub><strong>Marketplace (GIS Satellite Map)</strong></sub>
+      </td>
+    </tr>
+    <tr>
+      <td width="50%" align="center">
+        <img src="./docs/screenshots/customer.png" alt="Customer Dashboard" width="100%" />
+        <br /><sub><strong>Customer Dashboard</strong></sub>
+      </td>
+      <td width="50%" align="center">
+        <img src="./docs/screenshots/staff.png" alt="Staff Dashboard" width="100%" />
+        <br /><sub><strong>Staff Dashboard (Field Worker)</strong></sub>
+      </td>
+    </tr>
+    <tr>
+      <td width="50%" align="center">
+        <img src="./docs/screenshots/expert.png" alt="Expert Dashboard" width="100%" />
+        <br /><sub><strong>Expert Dashboard (Agronomist)</strong></sub>
+      </td>
+      <td width="50%" align="center">
+        <img src="./docs/screenshots/admin.png" alt="Admin Dashboard" width="100%" />
+        <br /><sub><strong>Admin Dashboard & RBAC</strong></sub>
+      </td>
+    </tr>
+  </table>
+</div>
 
 ---
 
-## Tech Stack
+## 🏗️ System Architecture & Tech Stack
 
-| Component | Technology | Why we chose it |
-| :--- | :--- | :--- |
-| **Backend** | Java Spring Boot 3, Spring Data JPA | Solid framework for handling transactional business logic (contracts, payments) |
-| **Frontend** | React 19, Vite, Tailwind CSS, Zustand | Fast development cycle with good state management |
-| **Database** | PostgreSQL 16 (3NF) | Reliable, free, and handles our relational data model well |
-| **DevOps** | Docker, Docker Compose | So all 4 of us could run the same environment locally |
-| **Analysis** | Draw.io, Postman, Vitest | For ERD diagrams, API testing, and unit tests |
+- **Frontend:** React 19, Vite 6, Tailwind CSS 4, MapLibre GL (GeoJSON GIS), Zustand, Recharts, Vitest (`:3000`)
+- **Backend:** Java 21, Spring Boot 3, Spring Cloud Gateway (`:8080`), Spring Data JPA (8 Domain Microservices `:8081`–`:8088`)
+- **AI Service:** Python FastAPI Hybrid RAG (`:8089`) — Google Gemini LLM + Vector Embeddings over VietGAP/IPM knowledge base
+- **Database & Infra:** PostgreSQL 16 (28 normalized 3NF tables, 17 enums, triggers), RabbitMQ 3.13, Docker Compose
+
+<details>
+<summary><strong>📐 Expand Service Ports, 3-Tier Architecture & ERD Diagrams</strong></summary>
+<br />
+
+| Service | Port | Responsibility |
+| :--- | :---: | :--- |
+| `frontend` | `3000` | React 19 SPA, MapLibre GIS UI & Vite dev API middleware |
+| `api-gateway` | `8080` | Centralized REST routing, JWT validation & CORS |
+| `identity-service` | `8081` | Authentication, user accounts & RBAC (`users`, `roles`, `audit_logs`) |
+| `farm-service` | `8082` | Lands, GeoJSON plots & site visit scheduling (`lands`, `plots`, `site_visits`) |
+| `knowledge-service` | `8083` | Crops, varieties, VietGAP templates & PDF docs (`process_templates`, `template_steps`) |
+| `rental-service` | `8084` | Reservations, master leases, renewals & cancellations (`contracts`, `rentals`) |
+| `payment-service` | `8085` | VNPay Sandbox 2.1.0 checkout & refunds (`payment_transactions`) |
+| `cultivation-service` | `8086` | Care tasks, photo diaries, field issues & harvests (`care_tasks`, `farm_diaries`) |
+| `communication-service` | `8087` | Live chat, notifications & support tickets (`conversations`, `messages`, `support_tickets`) |
+| `monitoring-service` | `8088` | Microclimate readings & threshold alerts (`sensor_readings`, `iot_alerts`) |
+| `ai-service` | `8089` | Farmely AI Hybrid RAG agronomy assistant |
+
+<div align="center">
+  <img src="./docs/diagrams/06_Farmely_System_Architecture_3Tier.png" alt="3-Tier System Architecture" width="85%" />
+  <br /><br />
+  <img src="./docs/diagrams/07_ERD_Conceptual.png" alt="Conceptual ERD" width="85%" />
+</div>
+
+</details>
 
 ---
 
-## Running Locally
+## 🚀 Getting Started
 
+### Prerequisites
+- **Docker & Docker Compose** *(recommended for full-stack startup)*, or:
+- **Node.js `>= 18`**, **PostgreSQL `>= 14`**, and **JDK `17/21`** *(for local development)*
+
+### 1. Environment Configuration
+Copy the template file and fill in your local credentials (never commit `.env`):
 ```bash
-git clone https://github.com/toilanguyenzz/farmely.git
-cd farmely
+cp .env.example .env
+```
+> Set `GEMINI_API_KEY` (Google AI Studio) and `VNP_TMN_CODE` / `VNP_HASH_SECRET` (VNPay Sandbox) in `.env` if you want live AI & payment sandbox integration.
 
-# Start all services via Docker Compose
-docker compose up -d
+### 2. Run the Application
 
-# Or run frontend only
+**Option A — Docker Compose (Full Stack):**
+```bash
+docker compose up -d --build
+```
+The PostgreSQL container automatically initializes all 28 tables and seed data from [`docs/database/farmely_full_database.sql`](./docs/database/farmely_full_database.sql). Open **`http://localhost:3000`**.
+
+**Option B — Local Development (Frontend + Local PostgreSQL):**
+```bash
+# 1. Seed PostgreSQL database (28 tables + VietGAP sample data)
+psql -U postgres -d farmely -f docs/database/farmely_full_database.sql
+
+# 2. Start Frontend & Dev API server (http://localhost:3000)
 cd frontend
 npm install
 npm run dev
 ```
 
+**Option C — Windows 1-Click Local Stack:**
+```powershell
+.\start-dev.ps1        # Start all microservices & frontend
+.\status-dev.ps1       # Check running services
+.\stop-dev.ps1         # Stop all services
+```
+
+### 3. Run Automated Tests
+```bash
+cd frontend && npm test
+```
+
 ---
 
-## What I'd Do Differently
+## 🔑 Demo Accounts
 
-- **Architecture:** We went with a modular monolith instead of microservices. For a team of 4 with a 3-month deadline, this was the right call — but if we had more time, splitting the booking and payment services would improve scalability.
-- **IoT Integration:** Currently IoT data is manually entered. With more time, I'd integrate real MQTT sensor streams for automatic soil moisture alerts.
+> Default password for all seeded accounts: **`Password@123`**
+
+| Role | Email | Display Name | Scope |
+| :--- | :--- | :--- | :--- |
+| **🛡️ ADMIN** | `admin@farmely.vn` | Ban Quản Trị Farmely | Full platform & RBAC management |
+| **🧑‍🔬 EXPERT** | `expert@farmely.vn` | ThS. Nguyễn Hoàng Nam | Lead agronomist & VietGAP templates |
+| **👷 FIELD_WORKER** | `worker@farmely.vn` | Trần Văn Lực | Field tasks, photo logs & harvest |
+| **👤 CUSTOMER** | `customer@farmely.vn` | Lô Thái Quyền | Active rental on plot `P-01` |
+
+---
+
+## 📂 Project Structure
+
+```text
+Farmely/
+├── backend/                # 10 Microservices (Spring Boot 3 + FastAPI AI RAG)
+├── frontend/               # React 19 + Vite + Tailwind + MapLibre GL + Vitest
+├── docs/                   # SRS, Business Rules (BR01–BR27), ERD & SQL scripts
+│   ├── academic/           # Single Source of Truth specification: RP39 (NEW).md
+│   ├── database/           # Full PostgreSQL schema & seed (farmely_full_database.sql)
+│   └── diagrams/           # Architecture, Context, Use Case & ERD diagrams
+├── Start/                  # Windows 1-Click helper scripts
+├── .env.example            # Environment variable template (no real secrets)
+└── docker-compose.yml      # Full-stack Docker orchestration
+```
 
 ---
 
 <div align="center">
-Built by <strong>Ta Nguyen Khoi Nguyen & Team</strong> · FPT University · ISP392 Information Systems Project (Spring 2026)
+  <sub>Built for <strong>ISP392 — Information Systems Project</strong> · <strong>FPT University</strong> · © 2026 Farmely Team</sub>
 </div>
